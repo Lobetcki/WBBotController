@@ -118,13 +118,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     startPeriodicCheck()
                     Log.d(TAG, "✅ startBot: периодическая проверка запущена")
 
-                    // ✅ ЖДЁМ 5 СЕКУНД ПЕРЕД ПЕРВОЙ ПРОВЕРКОЙ
+                    // ✅ ЖДЁМ 1 СЕКУНД ПЕРЕД ПЕРВОЙ ПРОВЕРКОЙ
                     Log.d(TAG, "startBot: ожидание 5 секунд перед первой проверкой...")
-                    delay(5000)
+                    delay(1000)
 
                     Log.d(TAG, "startBot: первая проверка заказов...")
                     withContext(Dispatchers.IO) {
-                        checkAndNotifyAboutOrders()
+                        checkAndNotifyAboutOrders(true)
                     }
                     Log.d(TAG, "✅ startBot: первая проверка выполнена")
 
@@ -186,7 +186,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     /**
      * Автоматическая проверка заказов (отправка во все чаты)
      */
-    private suspend fun checkAndNotifyAboutOrders() {
+    private suspend fun checkAndNotifyAboutOrders(autoCheck: Boolean) {
         Log.d(TAG, "========== checkAndNotifyAboutOrders: НАЧАЛО ==========")
 
         try {
@@ -197,7 +197,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             val newOrders = orderChecker.getNewOrders()
 
             if (newOrders.isEmpty()) {
-                sendMessageToAllChats(" Новых заказов нет.")
+                if (!autoCheck) sendMessageToAllChats(" Новых заказов нет.")
                 Log.d(TAG, "checkAndNotifyAboutOrders: новых заказов нет")
                 return
             }
@@ -334,10 +334,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 // Обработка команд
                 when {
                     text.contains("Жиган проверь", ignoreCase = true) || text.equals("/check", ignoreCase = true) -> {
-                        sendMessage(chatId, "🔍 Выполняю проверку...")
+                        sendMessageToAllChats("🔍 Выполняю проверку...")
                         serviceScope.launch {
-                            checkAndNotifyAboutOrdersForChat(chatId)
-                            checkAndNotifyAboutOrders()   // ← рассылает во все чаты
+//                            checkAndNotifyAboutOrdersForChat(chatId)
+                            checkAndNotifyAboutOrders(false)   // ← рассылает во все чаты
                         }
                     }
                     text.equals("/status", ignoreCase = true) -> {
