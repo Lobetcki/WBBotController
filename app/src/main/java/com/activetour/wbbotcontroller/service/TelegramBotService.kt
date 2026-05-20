@@ -197,6 +197,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             val newOrders = orderChecker.getNewOrders()
 
             if (newOrders.isEmpty()) {
+                sendMessageToAllChats(" Новых заказов нет.")
                 Log.d(TAG, "checkAndNotifyAboutOrders: новых заказов нет")
                 return
             }
@@ -213,8 +214,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 appendLine()
                 actualNewOrders.forEach { order ->
                     appendLine("• *${order.article}*")
-                    appendLine("  🆔 Номер: `${order.id}`")
-                    appendLine("  📅 Дата: ${order.createdAt?.replace("T", " ")?.replace("Z", "")}")
+                    appendLine("  Номер: `${order.id}`")
+                    appendLine("  Дата: ${order.createdAt?.replace("T", " ")?.replace("Z", "")}")
                     appendLine()
                 }
             }
@@ -270,9 +271,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             if (success) {
                 val message = buildString {
-                    appendLine("✅ Заказы успешно добавлены в $supplyType поставку!")
-                    appendLine("📦 Поставка: `${currentSupplyId}`")
-                    appendLine("📊 Добавлено заказов: ${orderIds.size}")
+                    appendLine("Заказы успешно добавлены в $supplyType поставку!")
+                    appendLine("Поставка: `${currentSupplyId}`")
+                    appendLine("Добавлено заказов: ${orderIds.size}")
                 }
                 // ✅ Отправляем ВО ВСЕ чаты
                 sendMessageToAllChats(message)
@@ -294,13 +295,24 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
         try {
             if (update.hasMessage() && update.message.hasText()) {
+
                 val chatId = update.message.chatId.toString()
                 val text = update.message.text
-
-                Log.d(TAG, "consume: сообщение из чата $chatId: '$text'")
+                val threadId = update.message.messageThreadId // <-- Получаем ID подгруппы (может быть null)
+                Log.d(TAG, "consume: сообщение из чата $chatId, $threadId: '$text'")
 
                 // ✅ АВТОМАТИЧЕСКИ добавляем чат (пользователь не знает про ID)
                 addChat(chatId)
+
+                // ✅ Сохраняем ID подгруппы ТОЛЬКО если в настройках ещё не задан пользовательский ID
+                val savedThreadId = preferencesManager.getMessageThreadId()
+                if (threadId != null && threadId != 0 && savedThreadId == 0) {
+                    preferencesManager.setMessageThreadId(threadId)
+                    Log.d(TAG, "✅ Сохранён ID подгруппы: $threadId")
+                    sendMessage(chatId, "✅ ID подгруппы сохранён: $threadId")
+                } else {
+                    Log.d(TAG, "Используется сохранённый ID подгруппы: $savedThreadId (автоопределение отключено)")
+                }
 
                 // Приветствие при первом сообщении
                 if (preferencesManager.getAllChatIds().size == 1 &&
@@ -308,14 +320,14 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     preferencesManager.setWelcomeSent(true)
                     sendMessage(chatId, buildString {
                         appendLine("✅ *Бот активирован!*")
-                        appendLine()
-                        appendLine("🤖 Я буду отслеживать заказы Wildberries")
-                        appendLine("и отправлять уведомления в этот чат.")
-                        appendLine()
-                        appendLine("📌 *Команды:*")
+//                        appendLine()
+//                        appendLine("🤖 Я буду отслеживать заказы Wildberries")
+//                        appendLine("и отправлять уведомления в этот чат.")
+//                        appendLine()
+//                        appendLine("📌 *Команды:*")
                         appendLine("• `Жиган проверь` - проверить заказы сейчас")
-                        appendLine("• `/status` - статус бота")
-                        appendLine("• `/help` - справка")
+//                        appendLine("• `/status` - статус бота")
+//                        appendLine("• `/help` - справка")
                     })
                 }
 
@@ -325,6 +337,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         sendMessage(chatId, "🔍 Выполняю проверку...")
                         serviceScope.launch {
                             checkAndNotifyAboutOrdersForChat(chatId)
+                            checkAndNotifyAboutOrders()   // ← рассылает во все чаты
                         }
                     }
                     text.equals("/status", ignoreCase = true) -> {
@@ -430,16 +443,22 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         if (text.isBlank() || chatId.isBlank()) return
 
         try {
+            val messageThreadId = preferencesManager.getMessageThreadId() // <-- Получаем ID подгруппы из настроек
             val message = SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
                 .parseMode("Markdown")
+                .apply {
+                    if (messageThreadId > 0) {
+                        this.messageThreadId(messageThreadId) // <-- Устанавливаем ID подгруппы
+                    }
+                }
                 .build()
 
             runBlocking {
                 try {
                     telegramClient.execute(message)
-                    Log.d(TAG, "✅ сообщение отправлено в $chatId")
+                    Log.d(TAG, "✅ сообщение отправлено в $chatId (threadId: $messageThreadId)")
                 } catch (e: TelegramApiException) {
                     if (e.message?.contains("bot can't send messages") == true ||
                         e.message?.contains("Forbidden") == true) {

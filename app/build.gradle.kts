@@ -51,11 +51,6 @@ kotlin {
     }
 }
 
-//composeCompiler {
-//    // Опционально: включить отчеты о стабильности Compose
-//    reportsDestination = layout.buildDirectory.dir("compose_compiler_reports")
-//}
-
 dependencies {
     // Core Android
     implementation(libs.androidx.core.ktx)
