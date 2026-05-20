@@ -23,7 +23,7 @@ class WbSupplyChecker(private val context: Context) {
     private val gson = Gson()
     private val prefs = PreferencesManager(context)
 
-    private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    private val mediaType = "application/json; charset=utf-8".toMediaType()
 
     suspend fun getLastActiveSupply(): String? = withContext(Dispatchers.IO) {
         val token = prefs.getWbApiToken()
@@ -90,7 +90,7 @@ class WbSupplyChecker(private val context: Context) {
         }
 
         val jsonBody = gson.toJson(mapOf("name" to supplyName))
-        val body = jsonBody.toRequestBody(JSON_MEDIA_TYPE)
+        val body = jsonBody.toRequestBody(mediaType)
 
         val request = Request.Builder()
             .url(url)
@@ -132,7 +132,7 @@ class WbSupplyChecker(private val context: Context) {
         }
 
         val jsonBody = gson.toJson(mapOf("orders" to orderIds))
-        val body = jsonBody.toRequestBody(JSON_MEDIA_TYPE)
+        val body = jsonBody.toRequestBody(mediaType)
 
         val request = Request.Builder()
             .url("$url/$supplyId/orders")
@@ -147,7 +147,6 @@ class WbSupplyChecker(private val context: Context) {
                 Log.i(TAG, "✅ Заказы $orderIds добавлены в поставку $supplyId")
                 return@withContext true
             } else {
-                val responseBody = response.body?.string() ?: ""
                 Log.e(TAG, "❌ Ошибка добавления заказов. Код: ${response.code}")
                 return@withContext false
             }

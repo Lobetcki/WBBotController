@@ -40,8 +40,8 @@ class PreferencesManager(context: Context) {
 
     fun getWbAddOrdersUrl(): String = prefs.getString(
         "wb_add_orders_url",
-        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
-    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/orders"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/orders"
 
     fun setWbAddOrdersUrl(url: String) = prefs.edit().putString("wb_add_orders_url", url).apply()
 
