@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -93,6 +95,9 @@ fun SettingsScreen(
 
     // Application Settings
     var checkInterval by remember { mutableStateOf(preferencesManager.getCheckIntervalMinutes().toString()) }
+
+    // mock режим
+    var mockMode by remember { mutableStateOf(preferencesManager.isMockMode()) }
 
     var showResetDialog by remember { mutableStateOf(false) }
     var saveSuccess by remember { mutableStateOf(false) }
@@ -262,6 +267,13 @@ fun SettingsScreen(
                         }
                     }
 
+                    // Сохраняем состояние мок-режима
+                    preferencesManager.setMockMode(mockMode)
+                    // Если мок-режим включён – показываем тост
+                    if (mockMode) {
+                        android.widget.Toast.makeText(context, "🎭 Мок-режим включён. Будут использоваться тестовые заказы.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+
                     saveSuccess = true
 
                     // Скрыть сообщение через 2 секунды
@@ -269,6 +281,7 @@ fun SettingsScreen(
                         kotlinx.coroutines.delay(2000)
                         saveSuccess = false
                     }
+                    android.widget.Toast.makeText(context, "Настройки сохранены.", android.widget.Toast.LENGTH_LONG).show()
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -313,6 +326,39 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+// Мок-режим
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "🎭 Мок-режим (тестовый)",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Имитировать получение заказов без API",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = mockMode,
+                        onCheckedChange = { mockMode = it }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 

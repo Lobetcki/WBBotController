@@ -12,6 +12,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import kotlinx.coroutines.delay
 
 class WbSupplyChecker(private val context: Context) {
 
@@ -26,6 +27,7 @@ class WbSupplyChecker(private val context: Context) {
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
     suspend fun getLastActiveSupply(): String? = withContext(Dispatchers.IO) {
+        delay(2000) // задержка 2 секунды для соблюдения лимита
         val token = prefs.getWbApiToken()
         val url = prefs.getWbSuppliesUrl()
 
@@ -81,6 +83,7 @@ class WbSupplyChecker(private val context: Context) {
     }
 
     suspend fun createSupply(supplyName: String): String? = withContext(Dispatchers.IO) {
+        delay(2000)
         val token = prefs.getWbApiToken()
         val url = prefs.getWbSuppliesUrl()
 
@@ -118,6 +121,7 @@ class WbSupplyChecker(private val context: Context) {
     }
 
     suspend fun addOrdersToSupply(supplyId: String, orderIds: List<Long>): Boolean = withContext(Dispatchers.IO) {
+        delay(2000)
         if (orderIds.isEmpty()) {
             Log.w(TAG, "Нет заказов для добавления")
             return@withContext false

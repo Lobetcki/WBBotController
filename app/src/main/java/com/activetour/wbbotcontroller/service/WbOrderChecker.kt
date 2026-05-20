@@ -24,6 +24,13 @@ class WbOrderChecker(private val context: Context) {
     private val prefs = PreferencesManager(context)
 
     suspend fun getNewOrders(): List<WBOrder> = withContext(Dispatchers.IO) {
+
+        // 🎭 Если включён мок‑режим – возвращаем тестовые данные
+        if (prefs.isMockMode()) {
+            Log.d(TAG, "🎭 МОК-РЕЖИМ: возвращаем тестовые заказы")
+            return@withContext getMockOrders()
+        }
+
         val token = prefs.getWbApiToken()
         val url = prefs.getWbOrdersUrl()
 
@@ -86,5 +93,29 @@ class WbOrderChecker(private val context: Context) {
             Log.d(TAG, "Ответ сервера: $responseBody")
             return emptyList()
         }
+    }
+
+    /**
+     * Генерирует список тестовых заказов для отладки.
+     */
+    private fun getMockOrders(): List<WBOrder> {
+        return listOf(
+            WBOrder(
+                id = 100506,
+                article = "Мок-товар 1",
+                createdAt = "2026-05-20T10:00:00Z"
+                // остальные поля будут заполнены значениями по умолчанию (null, 0, false)
+            ),
+            WBOrder(
+                id = 100507,
+                article = "Мок-товар 2",
+                createdAt = "2026-05-20T10:05:00Z"
+            ),
+            WBOrder(
+                id = 100508,
+                article = "Мок-товар 3",
+                createdAt = "2026-05-20T10:10:00Z"
+            )
+        )
     }
 }

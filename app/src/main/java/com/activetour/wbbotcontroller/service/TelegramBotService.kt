@@ -245,6 +245,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
      * Автоматическое создание поставки и добавление заказов
      */
     private suspend fun processSupplyAndAddOrders(orders: List<WBOrder>) {
+        delay(2000)
         if (orders.isEmpty()) return
 
         val orderIds = orders.map { it.id }
