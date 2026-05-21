@@ -15,11 +15,15 @@ class PreferencesManager(context: Context) {
     fun getBotToken(): String = prefs.getString("bot_token", "") ?: ""
     fun setBotToken(token: String) = prefs.edit().putString("bot_token", token).apply()
 
-    fun getBotUsername(): String = prefs.getString("bot_username", "Sam_Zhigan_Bot") ?: "Sam_Zhigan_Bot"
-    fun setBotUsername(username: String) = prefs.edit().putString("bot_username", username).apply()
+    // ==================== Bot ID ====================
+    fun getChatId(): String = prefs.getString("bot_id", "") ?: ""
+    fun setChatId(botId: String) = prefs.edit().putString("bot_id", botId).apply()
 
     fun getMessageThreadId(): Int = prefs.getInt("message_thread_id", 0)
     fun setMessageThreadId(threadId: Int) = prefs.edit().putInt("message_thread_id", threadId).apply()
+
+    fun getBotUsername(): String = prefs.getString("bot_username", "Sam_Zhigan_Bot") ?: "Sam_Zhigan_Bot"
+    fun setBotUsername(username: String) = prefs.edit().putString("bot_username", username).apply()
 
     // ==================== Wildberries API Settings ====================
 
@@ -44,8 +48,8 @@ class PreferencesManager(context: Context) {
 
     fun getWbAddOrdersUrl(): String = prefs.getString(   // URL добавления заказов
         "wb_add_orders_url",
-        "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
-    ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
+        "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
+    ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
 
     fun setWbAddOrdersUrl(url: String) = prefs.edit().putString("wb_add_orders_url", url).apply()
 
@@ -59,10 +63,6 @@ class PreferencesManager(context: Context) {
     fun isBotEnabled(): Boolean = prefs.getBoolean("bot_enabled", false)
     fun setBotEnabled(enabled: Boolean) = prefs.edit().putBoolean("bot_enabled", enabled).apply()
 
-    // ==================== Bot ID ====================
-
-    fun getBotId(): String = prefs.getString("bot_id", "") ?: ""
-    fun setBotId(botId: String) = prefs.edit().putString("bot_id", botId).apply()
 
     // ==================== Multiple Chats ====================
 
