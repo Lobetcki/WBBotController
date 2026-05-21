@@ -123,7 +123,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                     val botId = token.split(":").firstOrNull() ?: ""
                     if (botId.isNotEmpty()) {
-                        preferencesManager.setChatId(botId)
+                        preferencesManager.addChatId(botId)
                         Log.d(TAG, "✅ ID бота сохранён: $botId")
                     }
 
@@ -132,7 +132,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     Log.d(TAG, "✅ startBot: периодическая проверка запущена")
 
                     // Проверяем заказы только если уже есть активный чат
-                    if (preferencesManager.getChatId().isNotEmpty()) {
+                    if (preferencesManager.getAllChatIds().isNotEmpty()) {
                         Log.d(TAG, "startBot: первая проверка заказов...")
                         withContext(Dispatchers.IO) {
                             checkAndNotifyAboutOrders(true)
@@ -423,14 +423,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     private fun addChat(chatId: String) {
         if (chatId.isEmpty()) return
 
-        val botId = preferencesManager.getChatId()
-        if (chatId == botId) {
+        if (preferencesManager.getAllChatIds().contains(chatId)) {
             Log.d(TAG, "addChat: пропускаем ID бота")
             return
-        }
-
-        val currentChats = preferencesManager.getAllChatIds()
-        if (!currentChats.contains(chatId)) {
+        } else {
             preferencesManager.addChatId(chatId)
             Log.d(TAG, "✅ Чат автоматически добавлен: $chatId")
         }

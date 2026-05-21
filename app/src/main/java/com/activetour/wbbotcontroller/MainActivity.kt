@@ -218,7 +218,7 @@ class MainActivity : ComponentActivity() {
 
     private fun checkNow() {
 
-        if (preferencesManager.getChatId().isEmpty()) {
+        if (preferencesManager.getAllChatIds().isEmpty()) {
             Log.d(TAG, "startBot: чат ещё не активирован, проверка отложена до получения сообщения")
             return
         }
