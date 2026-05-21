@@ -124,7 +124,8 @@ class WbSupplyChecker(private val context: Context) {
         }
 
         val token = prefs.getWbApiToken()
-        val url = prefs.getWbSuppliesUrl()
+//        val url = prefs.getWbSuppliesUrl()
+        val url = prefs.getWbAddOrdersUrl()
 
         if (token.isBlank()) {
             Log.e(TAG, "❌ WB API токен не настроен!")
