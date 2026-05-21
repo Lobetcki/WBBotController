@@ -571,9 +571,17 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Обработка ручной проверки
-        if (intent?.getStringExtra("command") == "checkNow") {
-            serviceScope.launch {
-                checkAndNotifyAboutOrders(false)
+        when (intent?.getStringExtra("command")) {
+            "checkNow" -> {
+                serviceScope.launch {
+                    checkAndNotifyAboutOrders(false)
+                }
+            }
+
+            "notifyBotStopped" -> {
+                serviceScope.launch {
+                    sendMessageToAllChats("⚠️ Бот остановлен")
+                }
             }
         }
         // Остальной код (startForeground и т.д.) – уже есть
