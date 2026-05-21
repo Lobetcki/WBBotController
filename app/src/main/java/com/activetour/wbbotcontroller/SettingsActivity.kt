@@ -84,8 +84,9 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
 
-    // Telegram Settings (только токен, остальное автоматически)
+    // Telegram Settings (только токен ID подгруппы(темы чата), остальное автоматически)
     var botToken by remember { mutableStateOf(preferencesManager.getBotToken()) }
+    var messageThreadId by remember { mutableStateOf(preferencesManager.getMessageThreadId().toString()) }
 
     // Wildberries Settings
     var wbApiToken by remember { mutableStateOf(preferencesManager.getWbApiToken()) }
@@ -157,6 +158,18 @@ fun SettingsScreen(
                 supportingText = { Text("Обязательное поле") }
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = messageThreadId,
+                onValueChange = { messageThreadId = it },
+                label = { Text("ID подгруппы (темы чата)") },
+                placeholder = { Text("Оставьте пустым – определится автоматически") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = { Text("Если бот отправляет не в ту тему, очистите поле, сохраните, а затем напишите сообщение в нужной теме – ID определится автоматически") }
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Информация о чатах (автоматическое определение)
@@ -173,8 +186,8 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "• Chat ID определяется автоматически при первом сообщении боту\n" +
-                                "• Вам не нужно вводить Chat ID вручную\n" +
-                                "• Просто запустите бота и напишите ему любое сообщение",
+                                "• ID подгруппы (темы) тоже определяется автоматически из первого сообщения\n" +
+                                "• Если нужно сменить тему – очистите поле ID подгруппы, сохраните настройки и напишите боту в новой теме",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
@@ -259,11 +272,16 @@ fun SettingsScreen(
                     preferencesManager.setWbSuppliesUrl(wbSuppliesUrl)
                     preferencesManager.setWbAddOrdersUrl(wbAddOrdersUrl)
 
+                    // Сохраняем ID подгруппы (если введено число)
+                    val threadId = messageThreadId.toIntOrNull() ?: 0
+                    preferencesManager.setMessageThreadId(threadId)
+
                     checkInterval.toIntOrNull()?.let {
                         if (it >= 15) {
                             preferencesManager.setCheckIntervalMinutes(it)
                         } else {
-                            android.widget.Toast.makeText(context, "Интервал не может быть меньше 15 минут", android.widget.Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(context, "Интервал не может быть меньше 15 минут",
+                                android.widget.Toast.LENGTH_SHORT).show()
                         }
                     }
 
@@ -275,13 +293,13 @@ fun SettingsScreen(
                     }
 
                     saveSuccess = true
+                    android.widget.Toast.makeText(context, "Настройки сохранены", android.widget.Toast.LENGTH_SHORT).show()
 
                     // Скрыть сообщение через 2 секунды
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                         kotlinx.coroutines.delay(2000)
                         saveSuccess = false
                     }
-                    android.widget.Toast.makeText(context, "Настройки сохранены.", android.widget.Toast.LENGTH_LONG).show()
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -321,7 +339,7 @@ fun SettingsScreen(
                                 "   1. Зайдите в кабинет WB\n" +
                                 "   2. Настройки → Доступ к API\n" +
                                 "   3. Создайте новый токен с правами на заказы\n\n" +
-                                "📌 После запуска бота напишите ему любое сообщение для активации",
+                                "📌 После того как нажмете на кнопку включить в приложении, напишите в чате телеграмма(в который подключили бота) любое сообщение для активации",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -377,7 +395,7 @@ fun SettingsScreen(
                         wbApiToken = ""
                         wbOrdersUrl = "https://marketplace-api.wildberries.ru/api/v3/orders/new"
                         wbSuppliesUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies"
-                        wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/orders"
+                        wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
                         checkInterval = "15"
                         showResetDialog = false
                         saveSuccess = false

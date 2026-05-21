@@ -15,8 +15,8 @@ class PreferencesManager(context: Context) {
     fun getBotToken(): String = prefs.getString("bot_token", "") ?: ""
     fun setBotToken(token: String) = prefs.edit().putString("bot_token", token).apply()
 
-//    fun getBotUsername(): String = prefs.getString("bot_username", "Sam_Zhigan_Bot") ?: "Sam_Zhigan_Bot"
-//    fun setBotUsername(username: String) = prefs.edit().putString("bot_username", username).apply()
+    fun getBotUsername(): String = prefs.getString("bot_username", "Sam_Zhigan_Bot") ?: "Sam_Zhigan_Bot"
+    fun setBotUsername(username: String) = prefs.edit().putString("bot_username", username).apply()
 
     fun getMessageThreadId(): Int = prefs.getInt("message_thread_id", 0)
     fun setMessageThreadId(threadId: Int) = prefs.edit().putInt("message_thread_id", threadId).apply()
@@ -33,18 +33,12 @@ class PreferencesManager(context: Context) {
         "https://marketplace-api-sandbox.wildberries.ru/api/v3/orders/new"
     ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/v3/orders/new"
 
-//    fun getWbOrdersUrl(): String = prefs.getString(     // URL заказов
-//        "wb_orders_url",
-//        "https://marketplace-api.wildberries.ru/api/v3/orders/new"
-//    ) ?: "https://marketplace-api.wildberries.ru/api/v3/orders/new"
-
     fun setWbOrdersUrl(url: String) = prefs.edit().putString("wb_orders_url", url).apply()
 
     fun getWbSuppliesUrl(): String = prefs.getString(       // URL поставок
         "wb_supplies_url",
         "https://marketplace-api-sandbox.wildberries.ru/api/v3/supplies"
     ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/v3/supplies"
-//    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies"
 
     fun setWbSuppliesUrl(url: String) = prefs.edit().putString("wb_supplies_url", url).apply()
 
@@ -52,7 +46,6 @@ class PreferencesManager(context: Context) {
         "wb_add_orders_url",
         "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
     ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
-//    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
 
     fun setWbAddOrdersUrl(url: String) = prefs.edit().putString("wb_add_orders_url", url).apply()
 

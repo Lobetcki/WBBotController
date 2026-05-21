@@ -101,18 +101,18 @@ class WbOrderChecker(private val context: Context) {
     private fun getMockOrders(): List<WBOrder> {
         return listOf(
             WBOrder(
-                id = 100506,
+                id = 100509,
                 article = "Мок-товар 1",
                 createdAt = "2026-05-20T10:00:00Z"
                 // остальные поля будут заполнены значениями по умолчанию (null, 0, false)
             ),
             WBOrder(
-                id = 100507,
+                id = 100511,
                 article = "Мок-товар 2",
                 createdAt = "2026-05-20T10:05:00Z"
             ),
             WBOrder(
-                id = 100508,
+                id = 100512,
                 article = "Мок-товар 3",
                 createdAt = "2026-05-20T10:10:00Z"
             )
