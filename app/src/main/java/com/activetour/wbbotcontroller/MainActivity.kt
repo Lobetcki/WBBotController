@@ -194,6 +194,12 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "stopBot: НАЧАЛО")
 
         try {
+            // Сначала отправляем команду сервису на отправку уведомления
+            val intentNotify = Intent(this, TelegramBotService::class.java)
+            intentNotify.putExtra("command", "notifyBotStopped")
+            startService(intentNotify) // Это вызовет onStartCommand сервиса, где мы обработаем команду
+
+            // Затем останавливаем сервис
             val serviceIntent = Intent(this, TelegramBotService::class.java)
             stopService(serviceIntent)
             Log.d(TAG, "stopBot: stopService вызван")
@@ -212,7 +218,7 @@ class MainActivity : ComponentActivity() {
 
     private fun checkNow() {
 
-        if (preferencesManager.getChatId().isEmpty()) {
+        if (preferencesManager.getAllChatIds().isEmpty()) {
             Log.d(TAG, "startBot: чат ещё не активирован, проверка отложена до получения сообщения")
             return
         }

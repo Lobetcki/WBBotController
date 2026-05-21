@@ -123,7 +123,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                     val botId = token.split(":").firstOrNull() ?: ""
                     if (botId.isNotEmpty()) {
-                        preferencesManager.setChatId(botId)
+                        preferencesManager.addChatId(botId)
                         Log.d(TAG, "✅ ID бота сохранён: $botId")
                     }
 
@@ -132,7 +132,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     Log.d(TAG, "✅ startBot: периодическая проверка запущена")
 
                     // Проверяем заказы только если уже есть активный чат
-                    if (preferencesManager.getChatId().isNotEmpty()) {
+                    if (preferencesManager.getAllChatIds().isNotEmpty()) {
                         Log.d(TAG, "startBot: первая проверка заказов...")
                         withContext(Dispatchers.IO) {
                             checkAndNotifyAboutOrders(true)
@@ -148,6 +148,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ startBot: ОШИБКА в корутине!", e)
+
+
+
                     showAndroidNotification("❌ Ошибка запуска бота", "Проверьте токен и интернет")
                     stopSelf()
                 }
@@ -420,14 +423,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     private fun addChat(chatId: String) {
         if (chatId.isEmpty()) return
 
-        val botId = preferencesManager.getChatId()
-        if (chatId == botId) {
+        if (preferencesManager.getAllChatIds().contains(chatId)) {
             Log.d(TAG, "addChat: пропускаем ID бота")
             return
-        }
-
-        val currentChats = preferencesManager.getAllChatIds()
-        if (!currentChats.contains(chatId)) {
+        } else {
             preferencesManager.addChatId(chatId)
             Log.d(TAG, "✅ Чат автоматически добавлен: $chatId")
         }
@@ -568,9 +567,17 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Обработка ручной проверки
-        if (intent?.getStringExtra("command") == "checkNow") {
-            serviceScope.launch {
-                checkAndNotifyAboutOrders(false)
+        when (intent?.getStringExtra("command")) {
+            "checkNow" -> {
+                serviceScope.launch {
+                    checkAndNotifyAboutOrders(false)
+                }
+            }
+
+            "notifyBotStopped" -> {
+                serviceScope.launch {
+                    sendMessageToAllChats("⚠️ Бот остановлен")
+                }
             }
         }
         // Остальной код (startForeground и т.д.) – уже есть

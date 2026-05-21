@@ -12,11 +12,29 @@ class PreferencesManager(context: Context) {
     fun setBotToken(token: String) = prefs.edit().putString("bot_token", token).apply()
 
     // ==================== Bot ID ====================
-    fun getChatId(): String = prefs.getString("bot_id", "") ?: ""
-    fun setChatId(botId: String) = prefs.edit().putString("bot_id", botId).apply()
+//    fun getChatId(): String = prefs.getString("bot_id", "") ?: ""
+//    fun setChatId(botId: String) = prefs.edit().putString("bot_id", botId).apply()
 
     fun getMessageThreadId(): Int = prefs.getInt("message_thread_id", 0)
     fun setMessageThreadId(threadId: Int) = prefs.edit().putInt("message_thread_id", threadId).apply()
+
+
+    // ==================== Multiple Chats ====================
+    fun getAllChatIds(): Set<String> = prefs.getStringSet("all_chat_ids", emptySet()) ?: emptySet()
+
+    fun addChatId(chatId: String) {
+        val current = getAllChatIds().toMutableSet()
+        if (current.add(chatId)) {
+            prefs.edit().putStringSet("all_chat_ids", current).apply()
+        }
+    }
+
+    fun removeChatId(chatId: String) {
+        val current = getAllChatIds().toMutableSet()
+        if (current.remove(chatId)) {
+            prefs.edit().putStringSet("all_chat_ids", current).apply()
+        }
+    }
 
     // ==================== Wildberries API Settings ====================
 
@@ -55,24 +73,6 @@ class PreferencesManager(context: Context) {
 
     fun isBotEnabled(): Boolean = prefs.getBoolean("bot_enabled", false)
     fun setBotEnabled(enabled: Boolean) = prefs.edit().putBoolean("bot_enabled", enabled).apply()
-
-    // ==================== Multiple Chats ====================
-
-    fun getAllChatIds(): Set<String> = prefs.getStringSet("all_chat_ids", emptySet()) ?: emptySet()
-
-    fun addChatId(chatId: String) {
-        val current = getAllChatIds().toMutableSet()
-        if (current.add(chatId)) {
-            prefs.edit().putStringSet("all_chat_ids", current).apply()
-        }
-    }
-
-    fun removeChatId(chatId: String) {
-        val current = getAllChatIds().toMutableSet()
-        if (current.remove(chatId)) {
-            prefs.edit().putStringSet("all_chat_ids", current).apply()
-        }
-    }
 
     // ==================== Welcome Message ====================
 
