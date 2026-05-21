@@ -204,8 +204,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         Log.d(TAG, "========== checkAndNotifyAboutOrders: НАЧАЛО ==========")
 
         try {
-            // ✅ ЖДЁМ 1 СЕКУНДУ ПЕРЕД КАЖДЫМ ЗАПРОСОМ (для соблюдения лимита)
-            delay(1000)
 
             val orderChecker = WbOrderChecker(applicationContext)
             val newOrders = orderChecker.getNewOrders()
@@ -312,39 +310,41 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                 val chatId = update.message.chatId.toString()
                 val text = update.message.text
-                val threadId = update.message.messageThreadId // <-- Получаем ID подгруппы (может быть null)
+                val threadId = update.message.messageThreadId // <-- Получаем ID подгруппы
                 Log.d(TAG, "consume: сообщение из чата $chatId, $threadId: '$text'")
 
-                // ✅ АВТОМАТИЧЕСКИ добавляем чат (пользователь не знает про ID)
-                addChat(chatId)
+                // Проверяем, активирован ли уже этот чат
+                if (!preferencesManager.getAllChatIds().contains(chatId)) {
+                    // Чат ещё не активирован – ждём только команду СТАРТ
+                    if (text.equals("СТАРТ", ignoreCase = true)) {
+                        // Активируем чат
+                        addChat(chatId)
+                        if (threadId != null && threadId != 0) {
+                            preferencesManager.setMessageThreadId(threadId)
+                            Log.d(TAG, "✅ ID подгруппы сохранён: $threadId")
+                        }
+                        preferencesManager.setWelcomeSent(true) // отметим, что приветствие уже отправим
+                        // Отправляем приветственное сообщение
+                        sendMessage(chatId, buildString {
+                            appendLine("✅ *Бот активирован!*")
+//                            appendLine("🤖 Теперь я буду отслеживать заказы Wildberries")
+//                            appendLine("и отправлять уведомления в этот чат.")
+//                            appendLine()
+//                            appendLine("📌 *Команды:*")
+                            appendLine("• `Жиган проверь` - проверить заказы сейчас")
+//                            appendLine("• `/status` - статус бота")
+//                            appendLine("• `/help` - справка")
+                        })
+                        // После активации можно сразу проверить заказы (опционально)
+                        serviceScope.launch {
+                            checkAndNotifyAboutOrders(false)
+                        }
+                    }
 
-                // ✅ Сохраняем ID подгруппы ТОЛЬКО если в настройках ещё не задан пользовательский ID
-                val savedThreadId = preferencesManager.getMessageThreadId()
-                if (threadId != null && threadId != 0 && savedThreadId == 0) {
-                    preferencesManager.setMessageThreadId(threadId)
-                    Log.d(TAG, "✅ Сохранён ID подгруппы: $threadId")
-                    sendMessage(chatId, "✅ ID подгруппы сохранён: $threadId")
-                } else {
-                    Log.d(TAG, "Используется сохранённый ID подгруппы: $savedThreadId (автоопределение отключено)")
+                    return // Дальше не обрабатываем другие команды
                 }
 
-                // Приветствие при первом сообщении
-                if (preferencesManager.getAllChatIds().size == 1 &&
-                    !preferencesManager.isWelcomeSent()) {
-                    preferencesManager.setWelcomeSent(true)
-                    sendMessage(chatId, buildString {
-                        appendLine("✅ *Бот активирован!*")
-//                        appendLine()
-//                        appendLine("🤖 Я буду отслеживать заказы Wildberries")
-//                        appendLine("и отправлять уведомления в этот чат.")
-//                        appendLine()
-//                        appendLine("📌 *Команды:*")
-                        appendLine("• `Жиган проверь` - проверить заказы сейчас")
-//                        appendLine("• `/status` - статус бота")
-//                        appendLine("• `/help` - справка")
-                    })
-                }
-
+                // --- Чат уже активирован – обрабатываем команды обычным образом ---
                 // Обработка команд
                 when {
                     text.contains("Жиган проверь", ignoreCase = true) || text.equals("/check", ignoreCase = true) -> {
@@ -564,5 +564,16 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         if (::botApplication.isInitialized) {
             botApplication.close()
         }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Обработка ручной проверки
+        if (intent?.getStringExtra("command") == "checkNow") {
+            serviceScope.launch {
+                checkAndNotifyAboutOrders(false)
+            }
+        }
+        // Остальной код (startForeground и т.д.) – уже есть
+        return START_STICKY
     }
 }
