@@ -30,10 +30,6 @@ class CheckOrdersWorker(
                 return Result.success()
             }
 
-            // ✅ ЗАДЕРЖКА ДЛЯ СОБЛЮДЕНИЯ ЛИМИТА API (1 запрос в секунду)
-            Log.d(TAG, "Ожидание 2 секунды перед запросом к API...")
-            Thread.sleep(5000)  //  секунды задержки
-
             Log.d(TAG, "Начинаем проверку заказов...")
             val orderChecker = WbOrderChecker(applicationContext)
             val newOrders = runBlocking { orderChecker.getNewOrders() }
