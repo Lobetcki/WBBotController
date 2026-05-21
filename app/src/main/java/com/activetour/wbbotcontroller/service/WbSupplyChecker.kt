@@ -124,8 +124,7 @@ class WbSupplyChecker(private val context: Context) {
         }
 
         val token = prefs.getWbApiToken()
-//        val url = prefs.getWbSuppliesUrl()
-        val url = prefs.getWbAddOrdersUrl()
+        val url = String.format(prefs.getWbAddOrdersUrl(), supplyId)
 
         if (token.isBlank()) {
             Log.e(TAG, "❌ WB API токен не настроен!")
@@ -136,7 +135,7 @@ class WbSupplyChecker(private val context: Context) {
         val body = jsonBody.toRequestBody(mediaType)
 
         val request = Request.Builder()
-            .url("$url/$supplyId/orders")
+            .url(url)
             .addHeader("Authorization", "Bearer $token")
             .patch(body)
             .build()
