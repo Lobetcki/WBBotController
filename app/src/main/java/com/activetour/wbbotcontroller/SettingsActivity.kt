@@ -350,7 +350,7 @@ fun SettingsScreen(
                         wbApiToken = ""
                         wbOrdersUrl = "https://marketplace-api.wildberries.ru/api/v3/orders/new"
                         wbSuppliesUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies"
-                        wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/orders"
+                        wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
                         checkInterval = "15"
                         showResetDialog = false
                         saveSuccess = false

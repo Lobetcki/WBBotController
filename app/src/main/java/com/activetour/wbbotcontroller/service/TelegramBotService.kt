@@ -1,20 +1,33 @@
 package com.activetour.wbbotcontroller.service
 
-import com.activetour.wbbotcontroller.model.WBOrder
-import com.activetour.wbbotcontroller.worker.CheckOrdersWorker
-
-import android.app.*
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.work.*
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.activetour.wbbotcontroller.MainActivity
-import com.activetour.wbbotcontroller.R
+import com.activetour.wbbotcontroller.model.WBOrder
 import com.activetour.wbbotcontroller.utils.PreferencesManager
-import kotlinx.coroutines.*
+import com.activetour.wbbotcontroller.worker.CheckOrdersWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
@@ -110,7 +123,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                     val botId = token.split(":").firstOrNull() ?: ""
                     if (botId.isNotEmpty()) {
-                        preferencesManager.setBotId(botId)
+                        preferencesManager.setChatId(botId)
                         Log.d(TAG, "✅ ID бота сохранён: $botId")
                     }
 
@@ -118,15 +131,16 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     startPeriodicCheck()
                     Log.d(TAG, "✅ startBot: периодическая проверка запущена")
 
-                    // ✅ ЖДЁМ 1 СЕКУНД ПЕРЕД ПЕРВОЙ ПРОВЕРКОЙ
-                    Log.d(TAG, "startBot: ожидание 5 секунд перед первой проверкой...")
-                    delay(1000)
-
-                    Log.d(TAG, "startBot: первая проверка заказов...")
-                    withContext(Dispatchers.IO) {
-                        checkAndNotifyAboutOrders(true)
+                    // Проверяем заказы только если уже есть активный чат
+                    if (preferencesManager.getChatId().isNotEmpty()) {
+                        Log.d(TAG, "startBot: первая проверка заказов...")
+                        withContext(Dispatchers.IO) {
+                            checkAndNotifyAboutOrders(true)
+                        }
+                        Log.d(TAG, "✅ startBot: первая проверка выполнена")
+                    } else {
+                        Log.d(TAG, "startBot: чат ещё не активирован, первая проверка отложена до получения сообщения")
                     }
-                    Log.d(TAG, "✅ startBot: первая проверка выполнена")
 
                     showAndroidNotification("✅ Бот запущен", "Бот успешно запущен")
 
@@ -406,7 +420,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     private fun addChat(chatId: String) {
         if (chatId.isEmpty()) return
 
-        val botId = preferencesManager.getBotId()
+        val botId = preferencesManager.getChatId()
         if (chatId == botId) {
             Log.d(TAG, "addChat: пропускаем ID бота")
             return
