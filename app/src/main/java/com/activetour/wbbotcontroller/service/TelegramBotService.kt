@@ -24,7 +24,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -243,9 +242,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
             }
 
-            if (preferencesManager.isAutoCreateSupply()) {
-                processSupplyAndAddOrders(actualNewOrders)
-            }
+            // Создание поставок или давление в существующую
+            processSupplyAndAddOrders(actualNewOrders)
 
             Log.d(TAG, "✅ checkAndNotifyAboutOrders: УСПЕШНО ЗАВЕРШЕНА")
 
@@ -357,6 +355,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                             checkAndNotifyAboutOrders(false)   // ← рассылает во все чаты
                         }
                     }
+
                     text.equals("/status", ignoreCase = true) -> {
                         sendMessage(chatId, buildString {
                             appendLine("✅ *Статус бота:*")
@@ -539,7 +538,11 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     checkAndNotifyAboutOrders(false)
                 }
             }
-
+            "autoCheck" -> {
+                serviceScope.launch {
+                    checkAndNotifyAboutOrders(true)
+                }
+            }
             "notifyBotStopped" -> {
                 serviceScope.launch {
                     sendMessageToAllChats("⚠️ Бот остановлен")
