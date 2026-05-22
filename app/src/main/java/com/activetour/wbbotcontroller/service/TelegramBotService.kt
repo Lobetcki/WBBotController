@@ -384,40 +384,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     }
 
     /**
-     * Проверка заказов и отправка результата в конкретный чат
-     */
-    private suspend fun checkAndNotifyAboutOrdersForChat(chatId: String) {
-        try {
-            val orderChecker = WbOrderChecker(applicationContext)
-            val newOrders = orderChecker.getNewOrders()
-
-            if (newOrders.isEmpty()) {
-                sendMessage(chatId, "📭 Новых заказов нет.")
-                return
-            }
-
-            val actualNewOrders = newOrders.filter { it.id > lastCheckedOrderId }
-
-            if (actualNewOrders.isEmpty()) {
-                sendMessage(chatId, "📭 Новых заказов после фильтрации нет.")
-                return
-            }
-
-            val message = buildString {
-                appendLine("📦 *Найдено ${actualNewOrders.size} новых заказов:*")
-                appendLine()
-                actualNewOrders.forEach { order ->
-                    appendLine("• ${order.article} (№`${order.id}`)")
-                }
-            }
-            sendMessage(chatId, message)
-
-        } catch (e: Exception) {
-            sendMessage(chatId, "⚠️ *Ошибка при проверке заказов*\n${e.message}")
-        }
-    }
-
-    /**
      * Добавляет чат в список автоматически
      */
     private fun addChat(chatId: String) {
