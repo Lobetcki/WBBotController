@@ -7,7 +7,7 @@ class PreferencesManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("bot_prefs", Context.MODE_PRIVATE)
 
     // ================= Тестировочный режим (мок-режим) =====================
-    fun isMockMode(): Boolean = prefs.getBoolean("mock_mode", false)
+    fun isMockMode(): Boolean = prefs.getBoolean("mock_mode", true)
     fun setMockMode(enabled: Boolean) = prefs.edit().putBoolean("mock_mode", enabled).apply()
 
     // ==================== Telegram Settings ====================

@@ -133,7 +133,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                     // ✅ ЖДЁМ 5 СЕКУНД ПЕРЕД ПЕРВОЙ ПРОВЕРКОЙ
                     Log.d(TAG, "startBot: ожидание 5 секунд перед первой проверкой...")
-                    delay(5000)
+                    delay(2000)
 
                     // Проверяем заказы только если уже есть активный чат
                     if (preferencesManager.getAllChatIds().isNotEmpty()) {
@@ -249,9 +249,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
             }
 
-            if (preferencesManager.isAutoCreateSupply()) {
-                processSupplyAndAddOrders(actualNewOrders)
-            }
+            // Создание поставок или давление в существующую
+            processSupplyAndAddOrders(actualNewOrders)
 
             Log.d(TAG, "✅ checkAndNotifyAboutOrders: УСПЕШНО ЗАВЕРШЕНА")
 
@@ -364,6 +363,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                             checkAndNotifyAboutOrders(false)   // ← рассылает во все чаты
                         }
                     }
+
                     text.equals("/status", ignoreCase = true) -> {
                         sendMessage(chatId, buildString {
                             appendLine("✅ *Статус бота:*")
@@ -387,40 +387,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ consume: ОШИБКА!", e)
-        }
-    }
-
-    /**
-     * Проверка заказов и отправка результата в конкретный чат
-     */
-    private suspend fun checkAndNotifyAboutOrdersForChat(chatId: String) {
-        try {
-            val orderChecker = WbOrderChecker(applicationContext)
-            val newOrders = orderChecker.getNewOrders()
-
-            if (newOrders.isEmpty()) {
-                sendMessage(chatId, "📭 Новых заказов нет.")
-                return
-            }
-
-            val actualNewOrders = newOrders.filter { it.id > lastCheckedOrderId }
-
-            if (actualNewOrders.isEmpty()) {
-                sendMessage(chatId, "📭 Новых заказов после фильтрации нет.")
-                return
-            }
-
-            val message = buildString {
-                appendLine("📦 *Найдено ${actualNewOrders.size} новых заказов:*")
-                appendLine()
-                actualNewOrders.forEach { order ->
-                    appendLine("• ${order.article} (№`${order.id}`)")
-                }
-            }
-            sendMessage(chatId, message)
-
-        } catch (e: Exception) {
-            sendMessage(chatId, "⚠️ *Ошибка при проверке заказов*\n${e.message}")
         }
     }
 
@@ -580,7 +546,11 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     checkAndNotifyAboutOrders(false)
                 }
             }
-
+            "autoCheck" -> {
+                serviceScope.launch {
+                    checkAndNotifyAboutOrders(true)
+                }
+            }
             "notifyBotStopped" -> {
                 serviceScope.launch {
                     sendMessageToAllChats("⚠️ Бот остановлен")
