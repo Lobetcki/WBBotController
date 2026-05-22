@@ -123,7 +123,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                     val botId = token.split(":").firstOrNull() ?: ""
                     if (botId.isNotEmpty()) {
-                        preferencesManager.setChatId(botId)
+                        preferencesManager.addChatId(botId)
                         Log.d(TAG, "✅ ID бота сохранён: $botId")
                     }
 
@@ -136,7 +136,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     delay(5000)
 
                     // Проверяем заказы только если уже есть активный чат
-                    if (preferencesManager.getChatId().isNotEmpty()) {
+                    if (preferencesManager.getAllChatIds().isNotEmpty()) {
                         Log.d(TAG, "startBot: первая проверка заказов...")
                         withContext(Dispatchers.IO) {
                             checkAndNotifyAboutOrders(true)
@@ -152,6 +152,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ startBot: ОШИБКА в корутине!", e)
+
+
+
                     showAndroidNotification("❌ Ошибка запуска бота", "Проверьте токен и интернет")
                     stopSelf()
                 }
@@ -264,7 +267,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
      * Автоматическое создание поставки и добавление заказов
      */
     private suspend fun processSupplyAndAddOrders(orders: List<WBOrder>) {
-        delay(2000)
+        delay(1000)
         if (orders.isEmpty()) return
 
         val orderIds = orders.map { it.id }
@@ -317,39 +320,41 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                 val chatId = update.message.chatId.toString()
                 val text = update.message.text
-                val threadId = update.message.messageThreadId // <-- Получаем ID подгруппы (может быть null)
+                val threadId = update.message.messageThreadId // <-- Получаем ID подгруппы
                 Log.d(TAG, "consume: сообщение из чата $chatId, $threadId: '$text'")
 
-                // ✅ АВТОМАТИЧЕСКИ добавляем чат (пользователь не знает про ID)
-                addChat(chatId)
+                // Проверяем, активирован ли уже этот чат
+                if (!preferencesManager.getAllChatIds().contains(chatId)) {
+                    // Чат ещё не активирован – ждём только команду СТАРТ
+                    if (text.equals("СТАРТ", ignoreCase = true)) {
+                        // Активируем чат
+                        addChat(chatId)
+                        if (threadId != null && threadId != 0) {
+                            preferencesManager.setMessageThreadId(threadId)
+                            Log.d(TAG, "✅ ID подгруппы сохранён: $threadId")
+                        }
+                        preferencesManager.setWelcomeSent(true) // отметим, что приветствие уже отправим
+                        // Отправляем приветственное сообщение
+                        sendMessage(chatId, buildString {
+                            appendLine("✅ *Бот активирован!*")
+//                            appendLine("🤖 Теперь я буду отслеживать заказы Wildberries")
+//                            appendLine("и отправлять уведомления в этот чат.")
+//                            appendLine()
+//                            appendLine("📌 *Команды:*")
+                            appendLine("• `Жиган проверь` - проверить заказы сейчас")
+//                            appendLine("• `/status` - статус бота")
+//                            appendLine("• `/help` - справка")
+                        })
+                        // После активации можно сразу проверить заказы (опционально)
+                        serviceScope.launch {
+                            checkAndNotifyAboutOrders(false)
+                        }
+                    }
 
-                // ✅ Сохраняем ID подгруппы ТОЛЬКО если в настройках ещё не задан пользовательский ID
-                val savedThreadId = preferencesManager.getMessageThreadId()
-                if (threadId != null && threadId != 0 && savedThreadId == 0) {
-                    preferencesManager.setMessageThreadId(threadId)
-                    Log.d(TAG, "✅ Сохранён ID подгруппы: $threadId")
-                    sendMessage(chatId, "✅ ID подгруппы сохранён: $threadId")
-                } else {
-                    Log.d(TAG, "Используется сохранённый ID подгруппы: $savedThreadId (автоопределение отключено)")
+                    return // Дальше не обрабатываем другие команды
                 }
 
-                // Приветствие при первом сообщении
-                if (preferencesManager.getAllChatIds().size == 1 &&
-                    !preferencesManager.isWelcomeSent()) {
-                    preferencesManager.setWelcomeSent(true)
-                    sendMessage(chatId, buildString {
-                        appendLine("✅ *Бот активирован!*")
-//                        appendLine()
-//                        appendLine("🤖 Я буду отслеживать заказы Wildberries")
-//                        appendLine("и отправлять уведомления в этот чат.")
-//                        appendLine()
-//                        appendLine("📌 *Команды:*")
-                        appendLine("• `Жиган проверь` - проверить заказы сейчас")
-//                        appendLine("• `/status` - статус бота")
-//                        appendLine("• `/help` - справка")
-                    })
-                }
-
+                // --- Чат уже активирован – обрабатываем команды обычным образом ---
                 // Обработка команд
                 when {
                     text.contains("Жиган проверь", ignoreCase = true) || text.equals("/check", ignoreCase = true) -> {
@@ -425,14 +430,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     private fun addChat(chatId: String) {
         if (chatId.isEmpty()) return
 
-        val botId = preferencesManager.getChatId()
-        if (chatId == botId) {
+        if (preferencesManager.getAllChatIds().contains(chatId)) {
             Log.d(TAG, "addChat: пропускаем ID бота")
             return
-        }
-
-        val currentChats = preferencesManager.getAllChatIds()
-        if (!currentChats.contains(chatId)) {
+        } else {
             preferencesManager.addChatId(chatId)
             Log.d(TAG, "✅ Чат автоматически добавлен: $chatId")
         }
@@ -569,5 +570,24 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         if (::botApplication.isInitialized) {
             botApplication.close()
         }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Обработка ручной проверки
+        when (intent?.getStringExtra("command")) {
+            "checkNow" -> {
+                serviceScope.launch {
+                    checkAndNotifyAboutOrders(false)
+                }
+            }
+
+            "notifyBotStopped" -> {
+                serviceScope.launch {
+                    sendMessageToAllChats("⚠️ Бот остановлен")
+                }
+            }
+        }
+        // Остальной код (startForeground и т.д.) – уже есть
+        return START_STICKY
     }
 }

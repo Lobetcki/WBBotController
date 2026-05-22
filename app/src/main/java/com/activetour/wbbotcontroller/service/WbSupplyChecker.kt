@@ -83,7 +83,7 @@ class WbSupplyChecker(private val context: Context) {
     }
 
     suspend fun createSupply(supplyName: String): String? = withContext(Dispatchers.IO) {
-        delay(2000)
+        delay(1000)
         val token = prefs.getWbApiToken()
         val url = prefs.getWbSuppliesUrl()
 
@@ -121,7 +121,7 @@ class WbSupplyChecker(private val context: Context) {
     }
 
     suspend fun addOrdersToSupply(supplyId: String, orderIds: List<Long>): Boolean = withContext(Dispatchers.IO) {
-        delay(2000)
+        delay(1000)
         if (orderIds.isEmpty()) {
             Log.w(TAG, "Нет заказов для добавления")
             return@withContext false
