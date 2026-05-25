@@ -224,8 +224,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             // Формируем сообщение о новых заказах
             val ordersMessage = buildString {
-                appendLine("📦 *НОВЫЕ ЗАКАЗЫ!*")
-                appendLine()
+//                appendLine("📦 *НОВЫЕ ЗАКАЗЫ!*")
+//                appendLine()
                 actualNewOrders.forEach { order ->
                     appendLine("• *${order.article}*")
                     appendLine("  Номер: `${order.id}`")
@@ -268,7 +268,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             val supplyChecker = WbSupplyChecker(applicationContext)
             currentSupplyId = supplyChecker.getLastActiveSupply()
 
-            val supplyType = if (currentSupplyId != null) "СУЩЕСТВУЮЩУЮ" else "НОВУЮ"
+            val supplyType = if (currentSupplyId != null) " " else "НОВУЮ (созданную мной)"
 
             if (currentSupplyId == null) {
                 val supplyName = "Поставка от ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}"
@@ -284,8 +284,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             if (success) {
                 val message = buildString {
-                    appendLine("Заказы успешно добавлены в $supplyType поставку!")
-                    appendLine("Поставка: `${currentSupplyId}`")
+                    appendLine("Заказы добавлены в $supplyType ")
+                    appendLine("поставку: `${currentSupplyId}`")
                     appendLine("Добавлено заказов: ${orderIds.size}")
                 }
                 // ✅ Отправляем ВО ВСЕ чаты
