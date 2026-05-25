@@ -11,8 +11,3 @@ data class WBOrder(
     val price: Long = 0,
     val quantity: Int = 1
 )
-
-@Serializable
-data class WBOrderResponse(
-    val orders: List<WBOrder>
-)

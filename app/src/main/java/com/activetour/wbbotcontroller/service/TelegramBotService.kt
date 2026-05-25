@@ -5,9 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -24,10 +22,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
@@ -131,10 +129,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     startPeriodicCheck()
                     Log.d(TAG, "✅ startBot: периодическая проверка запущена")
 
-                    // ✅ ЖДЁМ 5 СЕКУНД ПЕРЕД ПЕРВОЙ ПРОВЕРКОЙ
-                    Log.d(TAG, "startBot: ожидание 5 секунд перед первой проверкой...")
-                    delay(2000)
-
                     // Проверяем заказы только если уже есть активный чат
                     if (preferencesManager.getAllChatIds().isNotEmpty()) {
                         Log.d(TAG, "startBot: первая проверка заказов...")
@@ -152,9 +146,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ startBot: ОШИБКА в корутине!", e)
-
-
-
                     showAndroidNotification("❌ Ошибка запуска бота", "Проверьте токен и интернет")
                     stopSelf()
                 }
@@ -231,12 +222,12 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             // Формируем сообщение о новых заказах
             val ordersMessage = buildString {
-                appendLine("📦 *НОВЫЕ ЗАКАЗЫ!*")
-                appendLine()
+//                appendLine("📦 *НОВЫЕ ЗАКАЗЫ!*")
+//                appendLine()
                 actualNewOrders.forEach { order ->
                     appendLine("• *${order.article}*")
                     appendLine("  Номер: `${order.id}`")
-                    appendLine("  Дата: ${order.createdAt?.replace("T", " ")?.replace("Z", "")}")
+                    appendLine("  Дата: ${order.createdAt.replace("T", " ").replace("Z", "")}")
                     appendLine()
                 }
             }
@@ -266,7 +257,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
      * Автоматическое создание поставки и добавление заказов
      */
     private suspend fun processSupplyAndAddOrders(orders: List<WBOrder>) {
-        delay(1000)
         if (orders.isEmpty()) return
 
         val orderIds = orders.map { it.id }
@@ -276,7 +266,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             val supplyChecker = WbSupplyChecker(applicationContext)
             currentSupplyId = supplyChecker.getLastActiveSupply()
 
-            val supplyType = if (currentSupplyId != null) "СУЩЕСТВУЮЩУЮ" else "НОВУЮ"
+            val supplyType = if (currentSupplyId != null) " " else "НОВУЮ (созданную мной)"
 
             if (currentSupplyId == null) {
                 val supplyName = "Поставка от ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}"
@@ -292,8 +282,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             if (success) {
                 val message = buildString {
-                    appendLine("Заказы успешно добавлены в $supplyType поставку!")
-                    appendLine("Поставка: `${currentSupplyId}`")
+                    appendLine("Заказы добавлены в $supplyType ")
+                    appendLine("поставку: `${currentSupplyId}`")
                     appendLine("Добавлено заказов: ${orderIds.size}")
                 }
                 // ✅ Отправляем ВО ВСЕ чаты
@@ -462,9 +452,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
     private fun showAndroidNotification(title: String, content: String) {
         try {
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     "bot_notifications",
                     "Уведомления бота",
@@ -473,7 +463,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     description = "Уведомления о статусе бота"
                 }
                 notificationManager.createNotificationChannel(channel)
-            }
+//            }
 
             val intent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(
@@ -497,7 +487,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Telegram Bot Service",
@@ -507,7 +497,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
-        }
+//        }
     }
 
     private fun createNotification(): Notification {

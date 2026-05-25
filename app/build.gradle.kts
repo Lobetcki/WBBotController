@@ -86,7 +86,7 @@ dependencies {
     implementation(libs.telegrambots.longpolling)
     implementation(libs.telegrambots.client)
 
-    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    implementation(libs.okhttp)
 
     // Gson для JSON
     implementation(libs.gson)

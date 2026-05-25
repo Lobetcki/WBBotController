@@ -14,7 +14,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import kotlinx.coroutines.delay
 
-class WbSupplyChecker(private val context: Context) {
+class WbSupplyChecker(context: Context) {
 
     companion object {
         private const val TAG = "WbSupplyChecker"
