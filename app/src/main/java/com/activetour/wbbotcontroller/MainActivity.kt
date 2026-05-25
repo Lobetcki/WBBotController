@@ -58,12 +58,12 @@ class MainActivity : ComponentActivity() {
         val allGranted = permissions.values.all { it }
         Log.d(TAG, "Результат запроса разрешений: $permissions")
         if (allGranted) {
-            android.widget.Toast.makeText(
-                this, "Все разрешения получены", android.widget.Toast.LENGTH_SHORT
+            Toast.makeText(
+                this, "Все разрешения получены", Toast.LENGTH_SHORT
             ).show()
         } else {
-            android.widget.Toast.makeText(
-                this, "Некоторые разрешения не получены", android.widget.Toast.LENGTH_LONG
+            Toast.makeText(
+                this, "Некоторые разрешения не получены", Toast.LENGTH_LONG
             ).show()
         }
     }
@@ -106,10 +106,10 @@ class MainActivity : ComponentActivity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка в onCreate", e)
-            android.widget.Toast.makeText(
+            Toast.makeText(
                 this,
                 "Ошибка: ${e.message}",
-                android.widget.Toast.LENGTH_LONG
+                Toast.LENGTH_LONG
             ).show()
         }
         Log.d(TAG, "onCreate END")
@@ -152,10 +152,10 @@ class MainActivity : ComponentActivity() {
 
             if (token.isEmpty()) {
                 Log.w(TAG, "startBot: токен пуст!")
-                android.widget.Toast.makeText(
+                Toast.makeText(
                     this,
                     "Сначала настройте токен бота",
-                    android.widget.Toast.LENGTH_LONG
+                    Toast.LENGTH_LONG
                 ).show()
                 return
             }
@@ -163,13 +163,13 @@ class MainActivity : ComponentActivity() {
             val serviceIntent = Intent(this, TelegramBotService::class.java)
             Log.d(TAG, "startBot: Intent создан")
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 Log.d(TAG, "startBot: startForegroundService (Android 8+)")
                 startForegroundService(serviceIntent)
-            } else {
-                Log.d(TAG, "startBot: startService (Android <8)")
-                startService(serviceIntent)
-            }
+//            } else {
+//                Log.d(TAG, "startBot: startService (Android <8)")
+//                startService(serviceIntent)
+//            }
 
             preferencesManager.setBotEnabled(true)
             Log.d(TAG, "startBot: botEnabled сохранён как true")
@@ -177,15 +177,15 @@ class MainActivity : ComponentActivity() {
             isBotRunning.value = true
             Log.d(TAG, "startBot: isBotRunning установлен в true")
 
-            android.widget.Toast.makeText(this, "Бот запущен", android.widget.Toast.LENGTH_SHORT)
+            Toast.makeText(this, "Бот запущен", Toast.LENGTH_SHORT)
                 .show()
             Log.d(TAG, "startBot: УСПЕШНО ЗАВЕРШЁН")
         } catch (e: Exception) {
             Log.e(TAG, "startBot: ОШИБКА!", e)
-            android.widget.Toast.makeText(
+            Toast.makeText(
                 this,
                 "Ошибка запуска: ${e.message}",
-                android.widget.Toast.LENGTH_LONG
+                Toast.LENGTH_LONG
             ).show()
         }
     }
@@ -208,7 +208,7 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "stopBot: botEnabled сохранён как false")
 
             isBotRunning.value = false
-            android.widget.Toast.makeText(this, "Бот остановлен", android.widget.Toast.LENGTH_SHORT)
+            Toast.makeText(this, "Бот остановлен", Toast.LENGTH_SHORT)
                 .show()
             Log.d(TAG, "stopBot: УСПЕШНО ЗАВЕРШЁН")
         } catch (e: Exception) {
@@ -233,10 +233,10 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "saveSettings: token = ${token.take(10)}...")
         try {
             preferencesManager.setBotToken(token)
-            android.widget.Toast.makeText(
+            Toast.makeText(
                 this,
                 "Настройки сохранены",
-                android.widget.Toast.LENGTH_SHORT
+                Toast.LENGTH_SHORT
             ).show()
             Log.d(TAG, "saveSettings: УСПЕШНО")
         } catch (e: Exception) {

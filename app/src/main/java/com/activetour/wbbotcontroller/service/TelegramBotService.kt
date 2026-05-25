@@ -5,9 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -229,7 +227,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 actualNewOrders.forEach { order ->
                     appendLine("• *${order.article}*")
                     appendLine("  Номер: `${order.id}`")
-                    appendLine("  Дата: ${order.createdAt?.replace("T", " ")?.replace("Z", "")}")
+                    appendLine("  Дата: ${order.createdAt.replace("T", " ").replace("Z", "")}")
                     appendLine()
                 }
             }
@@ -454,9 +452,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
     private fun showAndroidNotification(title: String, content: String) {
         try {
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     "bot_notifications",
                     "Уведомления бота",
@@ -465,7 +463,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     description = "Уведомления о статусе бота"
                 }
                 notificationManager.createNotificationChannel(channel)
-            }
+//            }
 
             val intent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(
@@ -489,7 +487,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Telegram Bot Service",
@@ -499,7 +497,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
-        }
+//        }
     }
 
     private fun createNotification(): Notification {
