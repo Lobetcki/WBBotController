@@ -55,24 +55,52 @@ class PreferencesManager(context: Context) {
 
     fun setWbOrdersUrl(url: String) = prefs.edit { putString("wb_orders_url", url) }
 
-    fun getWbSuppliesUrl(): String = prefs.getString(       // URL поставок
+    fun getWbSuppliesUrl(): String = prefs.getString(       // URL  список поставок
         "wb_supplies_url",
         "https://marketplace-api-sandbox.wildberries.ru/api/v3/supplies"
     ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/v3/supplies"
 
     fun setWbSuppliesUrl(url: String) = prefs.edit { putString("wb_supplies_url", url) }
 
-    fun getWbAddOrdersUrl(): String = prefs.getString(   // URL добавления заказов
+    fun getWbAddOrdersUrl(): String = prefs.getString(   // URL добавления заказов Добавить сборочные задания к поставке
         "wb_add_orders_url",
-        "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
-    ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
+        "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
+    ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
 
     fun setWbAddOrdersUrl(url: String) = prefs.edit { putString("wb_add_orders_url", url) }
 
+    // Добавить поставку к доставке
+    fun getWbAddNumberCargoSpacesUrl(): String = prefs.getString(   // URL Добавить грузоместа к поставке
+        "wb_add_number_cargo_spaces_url",
+        "https://marketplace-api-sandbox.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
+    ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
+
+    fun setWbAddNumberCargoSpacesUrl(url: String) = prefs.edit { putString("wb_add_number_cargo_spaces_url", url) }
+
+    fun getOrderIdsListUrl(): String = prefs.getString(   // URL Получение списка ID заказов в поставке
+        "wb_order_ids_list_url",
+        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
+    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
+
+    fun setOrderIdsListUrl(url: String) = prefs.edit { putString("wb_order_ids_list_url", url) }
+
+    fun getOrdersDetailsUrl(): String = prefs.getString(   // URL Получить информацию о сборочных заданиях
+        "wb_orders_details_url",
+        "https://marketplace-api.wildberries.ru/api/v3/orders"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/orders"
+
+    fun setOrdersDetailsUrl(url: String) = prefs.edit { putString("wb_orders_details_url", url) }
+
     // ==================== Application Settings ====================
+
+    fun getNumberCargoSpaces(): Int = prefs.getInt("number_cargo_spaces", 1)
+    fun setNumberCargoSpaces(numberCargoSpaces: Int) = prefs.edit { putInt("number_cargo_spaces", numberCargoSpaces) }
 
     fun getCheckIntervalMinutes(): Int = prefs.getInt("check_interval_minutes", 15)
     fun setCheckIntervalMinutes(minutes: Int) = prefs.edit { putInt("check_interval_minutes", minutes) }
+
+    fun getLimitForSelectionList(): Int = prefs.getInt("limit_for_selection_list", 1000)
+    fun setLimitForSelectionList(limit: Int) = prefs.edit { putInt("limit_for_selection_list", limit) }
 
     // ==================== Bot State (для автозапуска) ====================
 

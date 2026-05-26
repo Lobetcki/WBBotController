@@ -94,7 +94,10 @@ fun SettingsScreen(
     var wbSuppliesUrl by remember { mutableStateOf(preferencesManager.getWbSuppliesUrl()) }
     var wbAddOrdersUrl by remember { mutableStateOf(preferencesManager.getWbAddOrdersUrl()) }
 
+    var wbAddNumberCargoSpacesUrl by remember { mutableStateOf(preferencesManager.getWbAddNumberCargoSpacesUrl()) }
+
     // Application Settings
+//    var numberCargoSpaces by remember { mutableStateOf(preferencesManager.getNumberCargoSpaces().toString()) }
     var checkInterval by remember { mutableStateOf(preferencesManager.getCheckIntervalMinutes().toString()) }
 
     // mock режим
@@ -241,6 +244,15 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = wbAddNumberCargoSpacesUrl,
+                onValueChange = { wbAddNumberCargoSpacesUrl = it },
+                label = { Text("URL добавления грузомест к поставке") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
 
@@ -250,6 +262,17 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
+
+//            OutlinedTextField(
+//                value = numberCargoSpaces,
+//                onValueChange = { numberCargoSpaces = it },
+//                label = { Text("Количество грузомест") },
+//                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+//                modifier = Modifier.fillMaxWidth(),
+//                supportingText = { Text("По умолчанию: 1 грузоместо. Минимально: 1 грузоместо") }
+//            )
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             OutlinedTextField(
                 value = checkInterval,
@@ -268,13 +291,25 @@ fun SettingsScreen(
                     // Сохраняем только нужные настройки
                     preferencesManager.setBotToken(botToken)
                     preferencesManager.setWbApiToken(wbApiToken)
+
                     preferencesManager.setWbOrdersUrl(wbOrdersUrl)
                     preferencesManager.setWbSuppliesUrl(wbSuppliesUrl)
                     preferencesManager.setWbAddOrdersUrl(wbAddOrdersUrl)
 
+                    preferencesManager.setWbAddNumberCargoSpacesUrl(wbAddNumberCargoSpacesUrl)
+
                     // Сохраняем ID подгруппы (если введено число)
                     val threadId = messageThreadId.toIntOrNull() ?: 0
                     preferencesManager.setMessageThreadId(threadId)
+
+                    numberCargoSpaces.toIntOrNull()?.let {
+                        if (it >= 1) {
+                            preferencesManager.setNumberCargoSpaces(it)
+                        } else {
+                            android.widget.Toast.makeText(context, "Грузомест не может быть меньше 1",
+                                android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
 
                     checkInterval.toIntOrNull()?.let {
                         if (it >= 15) {
@@ -334,12 +369,14 @@ fun SettingsScreen(
                         text = "🔹 Telegram Bot Token:\n" +
                                 "   1. Напишите @BotFather\n" +
                                 "   2. Создайте бота командой /newbot\n" +
-                                "   3. Скопируйте полученный токен\n\n" +
+                                "   3. Скопируйте полученный токен\n" +
+                                "   4. Добавте бота в нужный чат Телеграмм (сам себе бот не пишет)\n\n" +
                                 "🔹 Wildberries API Token:\n" +
                                 "   1. Зайдите в кабинет WB\n" +
                                 "   2. Настройки → Доступ к API\n" +
-                                "   3. Создайте новый токен с правами на заказы\n\n" +
-                                "📌 После того как нажмете на кнопку включить в приложении, напишите в чате телеграмма(в который подключили бота) слово СТАРТ для активации",
+                                "   3. Создайте новый токен с правами на заказы\n" +
+                                "   4. Нажмите на кнопку включить в приложении\n" +
+                                "📌 5. Напишите в чате телеграмма(в который подключили бота) слово СТАРТ для активации\n\n",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -393,9 +430,16 @@ fun SettingsScreen(
                         // Обновляем все значения
                         botToken = ""
                         wbApiToken = ""
+
                         wbOrdersUrl = "https://marketplace-api.wildberries.ru/api/v3/orders/new"
                         wbSuppliesUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies"
-                        wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
+                        wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/sandbox/orders"
+
+                        wbAddNumberCargoSpacesUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies/sandbox/trbx"
+
+
+
+                        numberCargoSpaces = "1"
                         checkInterval = "15"
                         showResetDialog = false
                         saveSuccess = false

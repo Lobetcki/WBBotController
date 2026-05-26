@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class WBOrder(
     val id: Long,
+    val supplyId: String?,
     val article: String,
     val createdAt: String,
     val nmId: Long = 0,

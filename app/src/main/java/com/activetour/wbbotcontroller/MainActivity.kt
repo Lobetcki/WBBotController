@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.activetour.wbbotcontroller.service.TelegramBotService
 import com.activetour.wbbotcontroller.ui.theme.WBBotControllerTheme
@@ -97,6 +99,8 @@ class MainActivity : ComponentActivity() {
                             onStopBot = { stopBot() },
                             onSaveSettings = { token -> saveSettings(token) },
                             onCheckNow = { checkNow() },
+
+                            sendToDeliveryAndGetQRCodes = { sendToDeliveryAndGetQRCodes() },
                             onOpenSettings = { openSettings() },
                             getBotToken = { preferencesManager.getBotToken() }
                         )
@@ -220,6 +224,8 @@ class MainActivity : ComponentActivity() {
 
         if (preferencesManager.getAllChatIds().isEmpty()) {
             Log.d(TAG, "startBot: чат ещё не активирован, проверка отложена до получения сообщения")
+            Toast.makeText(this, "Бот не активирован в чате Телеграмм", Toast.LENGTH_SHORT)
+                .show()
             return
         }
 
@@ -227,6 +233,26 @@ class MainActivity : ComponentActivity() {
         intent.putExtra("command", "checkNow")
         startService(intent)
         Toast.makeText(this, "Проверка запущена", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun sendToDeliveryAndGetQRCodes() {
+
+        if (preferencesManager.getAllChatIds().isEmpty()) {
+            Log.d(TAG, "startBot: чат ещё не активирован, поставка не добавлена в доставку")
+            Toast.makeText(this,
+                "Бот не активирован в чате Телеграмм",
+                Toast.LENGTH_SHORT)
+                .show()
+            return
+        }
+
+        val intent = Intent(this, TelegramBotService::class.java)
+        intent.putExtra("command", "sendToDeliveryAndGetQRCodes")
+        startService(intent)
+        Toast.makeText(this,
+            "Добавление поставки в доставку запущенно, проверте чат в Телеграмм",
+            Toast.LENGTH_SHORT)
+            .show()
     }
 
     private fun saveSettings(token: String) {
@@ -258,6 +284,7 @@ fun BotControlScreen(
     onStopBot: () -> Unit,
     onSaveSettings: (String) -> Unit,
     onCheckNow: () -> Unit,
+    sendToDeliveryAndGetQRCodes: () -> Unit,
     onOpenSettings: () -> Unit,
     getBotToken: () -> String
 ) {
@@ -334,6 +361,27 @@ fun BotControlScreen(
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
         ) {
             Text("🔍 Проверить заказы сейчас")
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        OutlinedTextField(
+            value = numberCargoSpaces,
+            onValueChange = { numberCargoSpaces = it },
+            label = { Text("Количество грузомест") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+            supportingText = { Text("По умолчанию: 1 грузоместо. Минимально: 1 грузоместо") }
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = sendToDeliveryAndGetQRCodes,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSecondary)
+        ) {
+            Text("Передать поставку в доставку и получить QR коды ")
         }
 
         Spacer(modifier = Modifier.height(24.dp))
