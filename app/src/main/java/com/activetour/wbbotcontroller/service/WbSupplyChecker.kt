@@ -128,7 +128,7 @@ class WbSupplyChecker(context: Context) {
         }
 
 //        val url = String.format(prefs.getWbAddOrdersUrl(), supplyId)
-        val url = prefs.getWbAddNumberCargoSpacesUrl().replace("{supplyId}", supplyId)
+        val url = prefs.getWbAddOrdersUrl().replace("{supplyId}", supplyId)
         val token = prefs.getWbApiToken()
 
         if (token.isBlank()) {

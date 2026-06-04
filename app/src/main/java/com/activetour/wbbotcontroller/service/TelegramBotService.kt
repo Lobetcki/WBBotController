@@ -29,12 +29,17 @@ import kotlinx.coroutines.delay
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
+
+import org.telegram.telegrambots.meta.api.objects.InputFile
+import org.telegram.telegrambots.meta.api.objects.ChatId
+import java.io.File
 
 class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
@@ -322,11 +327,39 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 TAG,
                 "= sendToDeliveryAndGetQRCodes: поставку - $currentSupplyId добавляем в доставку и получаем QR коды ="
             )
-            val answer = delivery.sendToDeliveryAndGetQRCodes(currentSupplyId)
-            Log.d(
-                TAG,
-                "= sendToDeliveryAndGetQRCodes: поставка - $answer добавлена в доставку ="
-            )
+
+            // 1. Получаем QR-код поставки
+            val suppliesQRCodeFile = delivery.getQRCodesSupplies(currentSupplyId!!)
+            if (suppliesQRCodeFile == null) {
+                sendMessageToAllChats("❌ Ошибка при получении QR кода для поставки $currentSupplyId.")
+            } else {
+                sendDocumentToAllChats(suppliesQRCodeFile, "QR-код поставки $currentSupplyId")
+            }
+
+
+            // 2. Получаем QR-код поставки
+
+
+            // 3. Генерируем файл листа подбора
+            val excelFile = delivery.generateSelectionSheet(currentSupplyId!!)
+            if (excelFile != null) {
+                sendDocumentToAllChats(excelFile, "Лист подбора для поставки $currentSupplyId")
+                // После отправки удалить временный файл (опционально)
+                excelFile.delete()
+            } else {
+                sendMessageToAllChats( "❌ Ошибка при формировании Листа подбора для поставки $currentSupplyId.")
+            }
+
+            // 4. Добавляем грузоместа
+            if (!delivery.addCargoLocations(currentSupplyId!!)) sendMessageToAllChats("❌ Ошибка добавления грузомест в поставку $currentSupplyId.")
+
+
+
+//            val answer = delivery.sendToDeliveryAndGetQRCodes(currentSupplyId)
+//            Log.d(
+//                TAG,
+//                "= sendToDeliveryAndGetQRCodes: поставка - $answer добавлена в доставку ="
+//            )
 
 
 //            val success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
@@ -346,6 +379,38 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         } catch (e: Exception) {
             Log.e(TAG, "❌ processSupplyAndAddOrders: ОШИБКА!", e)
             sendMessageToAllChats("❌ *Ошибка при обработке поставки*\n${e.message}")
+        }
+    }
+
+    /**
+     * Отправление листа подбора в Telegram
+     */
+    private fun sendDocumentToAllChats(document: File, caption: String = "") {
+        val chatIds = preferencesManager.getAllChatIds()
+        if (chatIds.isEmpty()) {
+            Log.d(TAG, "Нет активных чатов для отправки документа")
+            return
+        }
+
+        val messageThreadId = preferencesManager.getMessageThreadId() // <-- Получаем ID подгруппы из настроек
+        for (chatId in chatIds) {
+            try {
+                val sendDocument = SendDocument.builder()
+                    .chatId(chatId)
+                    .document(InputFile(document))
+                    .apply {
+                        if (messageThreadId > 0) {
+                            this.messageThreadId(messageThreadId) // <-- Устанавливаем ID подгруппы
+                        }
+                    }
+                    .caption(caption)
+                    .build()
+
+                telegramClient.execute(sendDocument)
+                Log.d(TAG, "✅ Документ отправлен в чат $chatId")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Ошибка отправки документа в чат $chatId: ${e.message}", e)
+            }
         }
     }
 
@@ -495,8 +560,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         if (text.isBlank() || chatId.isBlank()) return
 
         try {
-            val messageThreadId =
-                preferencesManager.getMessageThreadId() // <-- Получаем ID подгруппы из настроек
+            val messageThreadId = preferencesManager.getMessageThreadId() // <-- Получаем ID подгруппы из настроек
             val message = SendMessage.builder()
                 .chatId(chatId)
                 .text(text)

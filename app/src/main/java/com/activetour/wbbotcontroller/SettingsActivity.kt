@@ -302,14 +302,14 @@ fun SettingsScreen(
                     val threadId = messageThreadId.toIntOrNull() ?: 0
                     preferencesManager.setMessageThreadId(threadId)
 
-                    numberCargoSpaces.toIntOrNull()?.let {
-                        if (it >= 1) {
-                            preferencesManager.setNumberCargoSpaces(it)
-                        } else {
-                            android.widget.Toast.makeText(context, "Грузомест не может быть меньше 1",
-                                android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    }
+//                    numberCargoSpaces.toIntOrNull()?.let {
+//                        if (it >= 1) {
+//                            preferencesManager.setNumberCargoSpaces(it)
+//                        } else {
+//                            android.widget.Toast.makeText(context, "Грузомест не может быть меньше 1",
+//                                android.widget.Toast.LENGTH_SHORT).show()
+//                        }
+//                    }
 
                     checkInterval.toIntOrNull()?.let {
                         if (it >= 15) {
@@ -439,7 +439,7 @@ fun SettingsScreen(
 
 
 
-                        numberCargoSpaces = "1"
+//                        numberCargoSpaces = "1"
                         checkInterval = "15"
                         showResetDialog = false
                         saveSuccess = false
