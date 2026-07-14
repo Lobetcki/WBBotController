@@ -15,6 +15,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.activetour.wbbotcontroller.MainActivity
+import com.activetour.wbbotcontroller.model.StickerForOrder
 import com.activetour.wbbotcontroller.model.WBOrder
 import com.activetour.wbbotcontroller.utils.PreferencesManager
 import com.activetour.wbbotcontroller.worker.CheckOrdersWorker
@@ -38,7 +39,7 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 import org.telegram.telegrambots.meta.api.objects.InputFile
-import org.telegram.telegrambots.meta.api.objects.ChatId
+//import org.telegram.telegrambots.meta.api.objects.ChatId
 import java.io.File
 
 class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
@@ -222,7 +223,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 return
             }
 
-            val actualNewOrders = newOrders.filter { it.id > lastCheckedOrderId }
+            val actualNewOrders = newOrders.filter { it.id!! > lastCheckedOrderId }
             if (actualNewOrders.isEmpty()) {
                 Log.d(TAG, "checkAndNotifyAboutOrders: новых заказов после фильтрации нет")
                 return
@@ -235,7 +236,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 actualNewOrders.forEach { order ->
                     appendLine("• *${order.article}*")
                     appendLine("  Номер: `${order.id}`")
-                    appendLine("  Дата: ${order.createdAt.replace("T", " ").replace("Z", "")}")
+                    appendLine("  Дата: ${order.createdAt!!.replace("T", " ").replace("Z", "")}")
                     appendLine()
                 }
             }
@@ -243,7 +244,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             sendMessageToAllChats(ordersMessage)
 
             actualNewOrders.forEach { order ->
-                if (order.id > lastCheckedOrderId) {
+                if (order.id!! > lastCheckedOrderId) {
                     lastCheckedOrderId = order.id
                 }
             }
@@ -328,6 +329,20 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 "= sendToDeliveryAndGetQRCodes: поставку - $currentSupplyId добавляем в доставку и получаем QR коды ="
             )
 
+
+
+
+            // 4. Добавляем грузоместа
+            if (!delivery.addCargoLocations(currentSupplyId!!)) sendMessageToAllChats("❌ Ошибка добавления грузомест в поставку $currentSupplyId.")
+
+            // 2. Получаем стикеры (QR-коды) заказов в поставке
+            val stickersForOrders: List<StickerForOrder> = delivery.getStickersForOrders(currentSupplyId)
+            if (stickersForOrders == null) {
+                sendMessageToAllChats("❌ Ошибка при получении стикеров для заказов в поставке $currentSupplyId.")
+            } else {
+                sendStickersToAllChats(stickersForOrders, "стикеры для заказов в поставке $currentSupplyId")
+            }
+
             // 1. Получаем QR-код поставки
             val suppliesQRCodeFile = delivery.getQRCodesSupplies(currentSupplyId!!)
             if (suppliesQRCodeFile == null) {
@@ -335,10 +350,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             } else {
                 sendDocumentToAllChats(suppliesQRCodeFile, "QR-код поставки $currentSupplyId")
             }
-
-
-            // 2. Получаем QR-код поставки
-
 
             // 3. Генерируем файл листа подбора
             val excelFile = delivery.generateSelectionSheet(currentSupplyId!!)
@@ -350,8 +361,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 sendMessageToAllChats( "❌ Ошибка при формировании Листа подбора для поставки $currentSupplyId.")
             }
 
-            // 4. Добавляем грузоместа
-            if (!delivery.addCargoLocations(currentSupplyId!!)) sendMessageToAllChats("❌ Ошибка добавления грузомест в поставку $currentSupplyId.")
+
 
 
 

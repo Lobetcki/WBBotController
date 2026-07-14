@@ -29,7 +29,7 @@ class WbSupplyChecker(context: Context) {
     suspend fun getLastActiveSupply(): String? = withContext(Dispatchers.IO) {
         delay(1000) // задержка 2 секунды для соблюдения лимита
         val token = prefs.getWbApiToken()
-        val url = prefs.getWbSuppliesUrl()
+        val url = prefs.getWbSuppliesUrl() //
 
         if (token.isBlank()) {
             Log.e(TAG, "❌ WB API токен не настроен!")
@@ -120,7 +120,7 @@ class WbSupplyChecker(context: Context) {
         }
     }
 
-    suspend fun addOrdersToSupply(supplyId: String, orderIds: List<Long>): Boolean = withContext(Dispatchers.IO) {
+    suspend fun addOrdersToSupply(supplyId: String, orderIds: List<Long?>): Boolean = withContext(Dispatchers.IO) {
         delay(1000)
         if (orderIds.isEmpty()) {
             Log.w(TAG, "Нет заказов для добавления")

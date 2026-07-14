@@ -2,6 +2,7 @@ package com.activetour.wbbotcontroller.service
 
 import android.content.Context
 import android.util.Log
+import com.activetour.wbbotcontroller.model.StickerForOrder
 import com.activetour.wbbotcontroller.model.WBOrder
 import com.activetour.wbbotcontroller.utils.PreferencesManager
 import com.google.gson.Gson
@@ -57,8 +58,8 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 
     // ========== 1. Генерация файла листа подбора ==========
     suspend fun generateSelectionSheet(currentSupplyId: String): File? {
-        val orderIds = getOrderIdsList(currentSupplyId) ?: return null
-        if (orderIds.isEmpty()) {
+        val orderIds: List<Long>? = getOrderIdsList(currentSupplyId)
+        if (orderIds?.isEmpty() ?: return null) {
             Log.e(TAG, "Нет заказов в поставке $currentSupplyId")
             return null
         }
@@ -104,7 +105,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 //                    order.nmId?.toString() ?: "",
 //                    order.price?.toString() ?: "",
 //                    order.warehouseId?.toString() ?: ""
-                ) ////////////////////////////////////////////////
+                )
                 writer.write(row.joinToString(";") { escapeCsv(it) })
                 writer.newLine()
             }
@@ -283,6 +284,14 @@ class WBDeliveryAndQRCodes(private val context: Context) {
         }
     }
 
+    // ========= Получаем стикеры (QR-коды) заказов в поставке =========
+    suspend fun getStickersForOrders(currentSupplyId: String?): List<StickerForOrder> {
+
+
+
+    }
+
+    // ========= Получаем QR-код поставки =========
     suspend fun getQRCodesSupplies(currentSupplyId: String): File? {
         delay(1000)
 

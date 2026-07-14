@@ -249,6 +249,7 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, TelegramBotService::class.java)
         intent.putExtra("command", "sendToDeliveryAndGetQRCodes")
         startService(intent)
+
         Toast.makeText(this,
             "Добавление поставки в доставку запущенно, проверте чат в Телеграмм",
             Toast.LENGTH_SHORT)

@@ -1,6 +1,7 @@
 package com.activetour.wbbotcontroller.model
 
 import kotlinx.serialization.Serializable
+import java.io.File
 
 @Serializable
 data class WBOrder(
@@ -12,4 +13,13 @@ data class WBOrder(
     val supplyId: String?,  // Поставка
 //    val price: Long = 0,
 //    val quantity: Int = 1
+)
+
+@Serializable
+data class StickerForOrder(
+    val orderId: Long,
+    val partA: String,
+    val partB: String,
+    val barcode: String,
+    val file: File
 )
