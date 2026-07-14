@@ -28,56 +28,72 @@ class WbSupplyChecker(private val context: Context) {
     suspend fun getLastActiveSupply(): String? = withContext(Dispatchers.IO) {
         val token = prefs.getWbApiToken()
         val url = prefs.getWbSuppliesUrl()
-
         if (token.isBlank()) {
             Log.e(TAG, "❌ WB API токен не настроен!")
             return@withContext null
         }
 
-        val request = Request.Builder()
-            .url("$url?limit=100&next=0")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
+        val limit = 100 // максимально возможный, чтобы уменьшить число запросов
+        var next = prefs.getNextForListSupplies()
+        var lastActiveId: String? = null
 
-        try {
-            val response = client.newCall(request).execute()
-            val responseBody = response.body?.string() ?: return@withContext null
+        do {
+            val request = Request.Builder()
+                .url("$url?limit=$limit&next=$next")
+                .addHeader("Authorization", "Bearer $token")
+                .get()
+                .build()
 
-            if (!response.isSuccessful) {
-                Log.e(TAG, "❌ Ошибка получения поставок. Код: ${response.code}")
-                return@withContext null
-            }
-
-            val jsonResponse = JsonParser.parseString(responseBody).asJsonObject
-
-            if (!jsonResponse.has("supplies")) {
-                Log.d(TAG, "В ответе нет поля 'supplies'")
-                return@withContext null
-            }
-
-            val supplies = jsonResponse.getAsJsonArray("supplies")
-
-            // Ищем активную поставку (с конца массива)
-            for (i in supplies.size() - 1 downTo 0) {
-                val supply = supplies[i].asJsonObject
-
-                if (supply.has("done") && !supply.get("done").asBoolean) {
-                    val supplyId = supply.get("id").asString
-                    Log.i(TAG, "📦 Найдена активная поставка: $supplyId")
-                    return@withContext supplyId
+            try {
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: break
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "❌ Ошибка API - получения поставок. Код: ${response.code}")
+                    break
                 }
-            }
 
+                val jsonResponse = JsonParser.parseString(responseBody).asJsonObject
+                val supplies = jsonResponse.getAsJsonArray("supplies") ?: break
+
+                // Если пришёл пустой массив – новых поставок нет
+                if (supplies.size() == 0) {
+                    Log.d(TAG, "Новых поставок нет")
+                    if (next > 10) prefs.setNextForListSupplies(next - 10)
+                    break
+                }
+
+                // Ищем активную поставку (с конца массива)
+                for (i in supplies.size() - 1 downTo 0) {
+                    val supply = supplies[i].asJsonObject
+
+                    if (supply.has("done") && !supply.get("done").asBoolean) {
+                        val supplyId = supply.get("id").asString
+//                        Log.i(TAG, "📦 Найдена активная поставка: $supplyId")
+                        lastActiveId = supplyId
+                        break
+                    }
+                }
+
+                // Получаем next для следующего запроса
+                val nextValue = jsonResponse.get("next").asLong
+                // Сохраняем next для следующего вызова (это будет курсор на следующую страницу)
+                if (nextValue > 10) {
+                    prefs.setNextForListSupplies(nextValue - 10)
+                }
+                next = nextValue
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка: ${e.message}", e)
+                break
+            }
+        } while (true)
+
+        if (lastActiveId != null) {
+            Log.i(TAG, "📦 Найдена последняя активная поставка: $lastActiveId")
+        } else {
             Log.i(TAG, "Активных поставок не найдено")
-            null
-        } catch (e: IOException) {
-            Log.e(TAG, "Ошибка при получении поставок: ${e.message}", e)
-            null
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка парсинга ответа: ${e.message}", e)
-            null
         }
+        return@withContext lastActiveId
     }
 
     suspend fun createSupply(supplyName: String): String? = withContext(Dispatchers.IO) {

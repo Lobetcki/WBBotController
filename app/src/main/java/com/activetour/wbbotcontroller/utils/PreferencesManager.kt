@@ -66,6 +66,9 @@ class PreferencesManager(context: Context) {
 
     // ==================== Application Settings ====================
 
+    fun getNextForListSupplies(): Long = prefs.getLong("next_for_list_supplies", 0)
+    fun setNextForListSupplies(next: Long) = prefs.edit().putLong("next_for_list_supplies", next).apply()
+
     fun getCheckIntervalMinutes(): Int = prefs.getInt("check_interval_minutes", 15)
     fun setCheckIntervalMinutes(minutes: Int) = prefs.edit().putInt("check_interval_minutes", minutes).apply()
 
