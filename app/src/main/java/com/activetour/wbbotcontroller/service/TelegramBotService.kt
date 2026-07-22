@@ -242,7 +242,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
             }
 
-            // Создание поставок или давление в существующую
+            // Создание поставок или добавление в существующую
             processSupplyAndAddOrders(actualNewOrders)
 
             Log.d(TAG, "✅ checkAndNotifyAboutOrders: УСПЕШНО ЗАВЕРШЕНА")
@@ -268,9 +268,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             val supplyChecker = WbSupplyChecker(applicationContext)
             currentSupplyId = supplyChecker.getLastActiveSupply()
 
-            val supplyType = if (currentSupplyId != null) " " else "НОВУЮ (созданную мной)"
+            var countOrders = orderIds.size
+            var supplyType = ""
+            var success = false
 
             if (currentSupplyId == null) {
+                supplyType = "НОВУЮ (созданную мной)"
+
                 val supplyName = "Поставка от ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}"
                 currentSupplyId = supplyChecker.createSupply(supplyName)
 
@@ -278,15 +282,19 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     sendMessageToAllChats("❌ *КРИТИЧЕСКАЯ ОШИБКА*\nНе удалось создать поставку!")
                     return
                 }
+
+                success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
+
+            } else {
+                success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
+                countOrders = supplyChecker.getCountOrdersInSupply(currentSupplyId!!)
             }
 
-            val success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
 
             if (success) {
                 val message = buildString {
-                    appendLine("Заказы добавлены в $supplyType ")
-                    appendLine("поставку: `${currentSupplyId}`")
-                    appendLine("Добавлено заказов: ${orderIds.size}")
+                    appendLine("В $supplyType поставку: $currentSupplyId добавлены заказы.")
+                    appendLine("В потавке заказов: $countOrders")
                 }
                 // ✅ Отправляем ВО ВСЕ чаты
                 sendMessageToAllChats(message)
@@ -364,6 +372,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                             appendLine("• 📊 Интервал проверки: ${preferencesManager.getCheckIntervalMinutes()} минут")
                         })
                     }
+
                     text.equals("/help", ignoreCase = true) -> {
                         sendMessage(chatId, buildString {
                             appendLine("🤖 *Доступные команды:*")
@@ -372,6 +381,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                             appendLine("• `/help` - эта справка")
                         })
                     }
+
                     else -> {
                         // Не отвечаем на обычные сообщения
                     }
@@ -538,11 +548,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     checkAndNotifyAboutOrders(false)
                 }
             }
+
             "autoCheck" -> {
                 serviceScope.launch {
                     checkAndNotifyAboutOrders(true)
                 }
             }
+
             "notifyBotStopped" -> {
                 serviceScope.launch {
                     sendMessageToAllChats("⚠️ Бот остановлен")

@@ -171,4 +171,50 @@ class WbSupplyChecker(private val context: Context) {
             false
         }
     }
+
+    suspend fun getCountOrdersInSupply(supplyId: String): Int = withContext(Dispatchers.IO) {
+
+        val url = String.format(prefs.getWbIdOrdersInSupplyUrl(), supplyId)
+
+        val token = prefs.getWbApiToken()
+        if (token.isBlank()) {
+            Log.e(TAG, "❌ WB API токен не настроен!")
+            return@withContext 0
+        }
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+
+        try {
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: return@withContext 0
+
+            Log.d(TAG, "HTTP Status: ${response.code}")
+
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Ошибка WB API: ${response.code} - $responseBody")
+                return@withContext 0
+            }
+
+            // Парсим JSON-ответ
+            val jsonResponse = JsonParser.parseString(responseBody).asJsonObject
+            val orderIdsArray = jsonResponse.getAsJsonArray("orderIds")
+            // Если поле отсутствует или null, возвращаем 0
+            if (orderIdsArray == null) {
+                return@withContext 0
+            }
+            // Возвращаем количество ID в массиве
+            orderIdsArray.size()
+        } catch (e: IOException) {
+            Log.e(TAG, "Ошибка при получении кол-ва заказов в поставке: ${e.message}", e)
+            0
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка парсинга ответа: ${e.message}", e)
+            0
+        }
+    }
+
 }

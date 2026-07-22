@@ -64,6 +64,13 @@ class PreferencesManager(context: Context) {
 
     fun setWbAddOrdersUrl(url: String) = prefs.edit().putString("wb_add_orders_url", url).apply()
 
+    fun getWbIdOrdersInSupplyUrl(): String = prefs.getString(   // URL id всех заказов в поставке c определенным id
+        "wb_id_orders_in_supply_url",
+        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
+    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
+
+    fun getWbIdOrdersInSupplyUrl(url: String) = prefs.edit().putString("wb_id_orders_in_supply_url", url).apply()
+
     // ==================== Application Settings ====================
 
     fun getNextForListSupplies(): Long = prefs.getLong("next_for_list_supplies", 0)
