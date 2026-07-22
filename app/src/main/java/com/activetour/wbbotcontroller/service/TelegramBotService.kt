@@ -294,7 +294,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             if (success) {
                 val message = buildString {
                     appendLine("В $supplyType поставку: $currentSupplyId добавлены заказы.")
-                    appendLine("В потавке заказов: $countOrders")
+                    appendLine("В поставке заказов: $countOrders")
                 }
                 // ✅ Отправляем ВО ВСЕ чаты
                 sendMessageToAllChats(message)
