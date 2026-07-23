@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -290,6 +291,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             if (success) {
 
                 if (!supplyExists) {
+                    delay(1000) // Ждём обновления данных
                     countOrders = supplyChecker.getCountOrdersInSupply(currentSupplyId!!)
                 }
 
