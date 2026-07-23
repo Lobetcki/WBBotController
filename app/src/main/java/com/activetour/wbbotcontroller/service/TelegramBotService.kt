@@ -271,8 +271,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             var countOrders = orderIds.size
             var supplyType = ""
             var success = false
+            var supplyExists = currentSupplyId == null
 
-            if (currentSupplyId == null) {
+            if (supplyExists) {
                 supplyType = "НОВУЮ (созданную мной)"
 
                 val supplyName = "Поставка от ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}"
@@ -282,19 +283,19 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     sendMessageToAllChats("❌ *КРИТИЧЕСКАЯ ОШИБКА*\nНе удалось создать поставку!")
                     return
                 }
-
-                success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
-
-            } else {
-                success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
-                countOrders = supplyChecker.getCountOrdersInSupply(currentSupplyId!!)
             }
 
+            success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
 
             if (success) {
+
+                if (!supplyExists) {
+                    countOrders = supplyChecker.getCountOrdersInSupply(currentSupplyId!!)
+                }
+
                 val message = buildString {
                     appendLine("В $supplyType поставку: $currentSupplyId добавлены заказы.")
-                    appendLine("В поставке заказов: $countOrders")
+                    appendLine("В поставке заказов:   $countOrders")
                 }
                 // ✅ Отправляем ВО ВСЕ чаты
                 sendMessageToAllChats(message)
