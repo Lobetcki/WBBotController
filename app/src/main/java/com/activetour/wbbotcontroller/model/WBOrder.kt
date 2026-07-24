@@ -5,9 +5,9 @@ import java.io.File
 
 @Serializable
 data class WBOrder(
-    val id: Long?,           // № задания
-    val article: String?, // Артикул продавца (Наименование)
-    val createdAt: String?,
+    val id: Long,           // № задания
+    val article: String, // Артикул продавца (Наименование)
+    val createdAt: String,
     val colorCode: String?,      // код цвета
 //    val nmId: Long = 0,     // внутренний идентификатор карточки товара в WB.
     val supplyId: String?,  // Поставка
