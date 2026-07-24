@@ -69,7 +69,7 @@ class PreferencesManager(context: Context) {
         "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
     ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
 
-    fun getWbIdOrdersInSupplyUrl(url: String) = prefs.edit().putString("wb_id_orders_in_supply_url", url).apply()
+    fun setWbIdOrdersInSupplyUrl(url: String) = prefs.edit().putString("wb_id_orders_in_supply_url", url).apply()
 
     // ==================== Application Settings ====================
 
