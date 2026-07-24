@@ -234,9 +234,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     appendLine()
                 }
             }
-
-            sendMessageToAllChats(ordersMessage)
-
+//            sendMessageToAllChats(ordersMessage)
             actualNewOrders.forEach { order ->
                 if (order.id > lastCheckedOrderId) {
                     lastCheckedOrderId = order.id
@@ -244,7 +242,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             }
 
             // Создание поставок или добавление в существующую
-            processSupplyAndAddOrders(actualNewOrders)
+            processSupplyAndAddOrders(actualNewOrders, ordersMessage)
 
             Log.d(TAG, "✅ checkAndNotifyAboutOrders: УСПЕШНО ЗАВЕРШЕНА")
 
@@ -259,7 +257,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     /**
      * Автоматическое создание поставки и добавление заказов
      */
-    private suspend fun processSupplyAndAddOrders(orders: List<WBOrder>) {
+    private suspend fun processSupplyAndAddOrders(orders: List<WBOrder>, ordersMessage: String) {
         if (orders.isEmpty()) return
 
         val orderIds = orders.map { it.id }
@@ -275,9 +273,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             var supplyNotFound = currentSupplyId == null
 
             if (supplyNotFound) {
-                sendMessageToAllChats("\uD83D\uDCE6\uD83D\uDD12 *Поставка закрыта* ")
                 supplyType = "НОВУЮ (созданную мной)"
-
                 val supplyName = "Поставка от ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}"
                 currentSupplyId = supplyChecker.createSupply(supplyName)
 
@@ -297,7 +293,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
 
                 val message = buildString {
-                    appendLine("В $supplyType поставку: $currentSupplyId добавлены заказы.")
+                    appendLine("В $supplyType поставку: $currentSupplyId добавлены заказы:")
+                    appendLine(ordersMessage)
                     appendLine("В поставке заказов:   $countOrders")
                 }
                 // ✅ Отправляем ВО ВСЕ чаты
