@@ -13,7 +13,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
 
-class WbOrderChecker(context: Context) {
+class WbOrderChecker(private val context: Context) {
 
     companion object {
         private const val TAG = "WbOrderChecker"
@@ -73,7 +73,7 @@ class WbOrderChecker(context: Context) {
             }
 
             val ordersArray = jsonObject.getAsJsonArray("orders")
-            if (ordersArray.isEmpty) {
+            if (ordersArray.isEmpty()) {
                 Log.i(TAG, "Нет новых заказов")
                 return emptyList()
             }

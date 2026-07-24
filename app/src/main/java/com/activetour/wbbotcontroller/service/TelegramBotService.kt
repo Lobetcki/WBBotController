@@ -5,7 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -23,6 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -143,10 +146,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         }
                         Log.d(TAG, "✅ startBot: первая проверка выполнена")
                     } else {
-                        Log.d(
-                            TAG,
-                            "startBot: чат ещё не активирован, первая проверка отложена до получения сообщения"
-                        )
+                        Log.d(TAG, "startBot: чат ещё не активирован, первая проверка отложена до получения сообщения")
                     }
 
                     showAndroidNotification("✅ Бот запущен", "Бот успешно запущен")
@@ -223,7 +223,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 return
             }
 
-            val actualNewOrders = newOrders.filter { it.id!! > lastCheckedOrderId }
+            val actualNewOrders = newOrders.filter { it.id > lastCheckedOrderId }
             if (actualNewOrders.isEmpty()) {
                 Log.d(TAG, "checkAndNotifyAboutOrders: новых заказов после фильтрации нет")
                 return
@@ -236,21 +236,19 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 actualNewOrders.forEach { order ->
                     appendLine("• *${order.article}*")
                     appendLine("  Номер: `${order.id}`")
-                    appendLine("  Дата: ${order.createdAt!!.replace("T", " ").replace("Z", "")}")
+                    appendLine("  Дата: ${order.createdAt?.replace("T", " ")?.replace("Z", "")}")
                     appendLine()
                 }
             }
-
-            sendMessageToAllChats(ordersMessage)
-
+//            sendMessageToAllChats(ordersMessage)
             actualNewOrders.forEach { order ->
-                if (order.id!! > lastCheckedOrderId) {
+                if (order.id > lastCheckedOrderId) {
                     lastCheckedOrderId = order.id
                 }
             }
 
-            // Создание поставок или давление в существующую
-            processSupplyAndAddOrders(actualNewOrders)
+            // Создание поставок или добавление в существующую
+            processSupplyAndAddOrders(actualNewOrders, ordersMessage)
 
             Log.d(TAG, "✅ checkAndNotifyAboutOrders: УСПЕШНО ЗАВЕРШЕНА")
 
@@ -265,7 +263,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     /**
      * Автоматическое создание поставки и добавление заказов
      */
-    private suspend fun processSupplyAndAddOrders(orders: List<WBOrder>) {
+    private suspend fun processSupplyAndAddOrders(orders: List<WBOrder>, ordersMessage: String) {
         if (orders.isEmpty()) return
 
         val orderIds = orders.map { it.id }
@@ -275,12 +273,14 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             val supplyChecker = WbSupplyChecker(applicationContext)
             currentSupplyId = supplyChecker.getLastActiveSupply()
 
-            val supplyType = if (currentSupplyId != null) " " else "НОВУЮ (созданную мной)"
+            var countOrders = orderIds.size
+            var supplyType = ""
+            var success = false
+            var supplyNotFound = currentSupplyId == null
 
-            if (currentSupplyId == null) {
-                val supplyName = "Поставка от ${
-                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
-                }"
+            if (supplyNotFound) {
+                supplyType = "НОВУЮ (созданную мной)"
+                val supplyName = "Поставка от ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}"
                 currentSupplyId = supplyChecker.createSupply(supplyName)
 
                 if (currentSupplyId == null) {
@@ -289,13 +289,19 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
             }
 
-            val success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
+            success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
 
             if (success) {
+
+                if (!supplyNotFound) {
+                    delay(2000) // Ждём обновления данных
+                    countOrders = supplyChecker.getCountOrdersInSupply(currentSupplyId!!)
+                }
+
                 val message = buildString {
-                    appendLine("Заказы добавлены в $supplyType ")
-                    appendLine("поставку: `${currentSupplyId}`")
-                    appendLine("Добавлено заказов: ${orderIds.size}")
+                    appendLine("В $supplyType поставку: $currentSupplyId добавлены заказы:")
+                    appendLine(ordersMessage)
+                    appendLine("В поставке заказов:   $countOrders")
                 }
                 // ✅ Отправляем ВО ВСЕ чаты
                 sendMessageToAllChats(message)
@@ -473,7 +479,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 // --- Чат уже активирован – обрабатываем команды обычным образом ---
                 // Обработка команд
                 when {
-                    text.contains("Жиган проверь", ignoreCase = true) -> {
+                    text.contains("Жиган проверь", ignoreCase = true) || text.equals("/check", ignoreCase = true) -> {
                         sendMessageToAllChats("🔍 Выполняю проверку...")
                         serviceScope.launch {
 //                            checkAndNotifyAboutOrdersForChat(chatId)
@@ -501,12 +507,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         sendMessage(chatId, buildString {
                             appendLine("✅ *Статус бота:*")
                             appendLine("• Состояние: Активен")
-                            appendLine(
-                                "• 🕐 ${
-                                    LocalDateTime.now()
-                                        .format(DateTimeFormatter.ofPattern("HH:mm:ss dd.MM.yyyy"))
-                                }"
-                            )
+                            appendLine("• 🕐 ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss dd.MM.yyyy"))}")
                             appendLine("• 📊 Интервал проверки: ${preferencesManager.getCheckIntervalMinutes()} минут")
                         })
                     }
@@ -588,8 +589,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     Log.d(TAG, "✅ сообщение отправлено в $chatId (threadId: $messageThreadId)")
                 } catch (e: TelegramApiException) {
                     if (e.message?.contains("bot can't send messages") == true ||
-                        e.message?.contains("Forbidden") == true
-                    ) {
+                        e.message?.contains("Forbidden") == true) {
                         Log.w(TAG, "⚠️ Бот не может отправлять в $chatId, удаляем")
                         preferencesManager.removeChatId(chatId)
                     } else {
@@ -604,18 +604,18 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
     private fun showAndroidNotification(title: String, content: String) {
         try {
-            val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "bot_notifications",
-                "Уведомления бота",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Уведомления о статусе бота"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    "bot_notifications",
+                    "Уведомления бота",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Уведомления о статусе бота"
+                }
+                notificationManager.createNotificationChannel(channel)
             }
-            notificationManager.createNotificationChannel(channel)
-//            }
 
             val intent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(
@@ -639,17 +639,17 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     }
 
     private fun createNotificationChannel() {
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Telegram Bot Service",
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Сервис отслеживания заказов Wildberries"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Telegram Bot Service",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Сервис отслеживания заказов Wildberries"
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
         }
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
-//        }
     }
 
     private fun createNotification(): Notification {

@@ -68,6 +68,14 @@ class PreferencesManager(context: Context) {
 
     fun setWbAddOrdersUrl(url: String) = prefs.edit().putString("wb_add_orders_url", url).apply()
 
+    fun getWbIdOrdersInSupplyUrl(): String = prefs.getString(   // URL id всех заказов в поставке c определенным id
+        "wb_id_orders_in_supply_url",
+        "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
+    ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
+
+    fun getWbIdOrdersInSupplyUrl(url: String) = prefs.edit().putString("wb_id_orders_in_supply_url", url).apply()
+
+
     // Добавить поставку к доставке
     fun getWbAddNumberCargoSpacesUrl(): String = prefs.getString(   // URL Добавить грузоместа к поставке
         "wb_add_number_cargo_spaces_url",
@@ -100,6 +108,10 @@ class PreferencesManager(context: Context) {
 
 
     // ==================== Application Settings ====================
+
+    fun getNextForListSupplies(): Long = prefs.getLong("next_for_list_supplies", 0)
+    fun setNextForListSupplies(next: Long) = prefs.edit().putLong("next_for_list_supplies", next).apply()
+
 
     fun getNumberCargoSpaces(): Int = prefs.getInt("number_cargo_spaces", 1)
     fun setNumberCargoSpaces(numberCargoSpaces: Int) = prefs.edit().putInt("number_cargo_spaces", numberCargoSpaces).apply()

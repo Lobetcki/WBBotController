@@ -60,12 +60,12 @@ class MainActivity : ComponentActivity() {
         val allGranted = permissions.values.all { it }
         Log.d(TAG, "Результат запроса разрешений: $permissions")
         if (allGranted) {
-            Toast.makeText(
-                this, "Все разрешения получены", Toast.LENGTH_SHORT
+            android.widget.Toast.makeText(
+                this, "Все разрешения получены", android.widget.Toast.LENGTH_SHORT
             ).show()
         } else {
-            Toast.makeText(
-                this, "Некоторые разрешения не получены", Toast.LENGTH_LONG
+            android.widget.Toast.makeText(
+                this, "Некоторые разрешения не получены", android.widget.Toast.LENGTH_LONG
             ).show()
         }
     }
@@ -110,10 +110,10 @@ class MainActivity : ComponentActivity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка в onCreate", e)
-            Toast.makeText(
+            android.widget.Toast.makeText(
                 this,
                 "Ошибка: ${e.message}",
-                Toast.LENGTH_LONG
+                android.widget.Toast.LENGTH_LONG
             ).show()
         }
         Log.d(TAG, "onCreate END")
@@ -156,10 +156,10 @@ class MainActivity : ComponentActivity() {
 
             if (token.isEmpty()) {
                 Log.w(TAG, "startBot: токен пуст!")
-                Toast.makeText(
+                android.widget.Toast.makeText(
                     this,
                     "Сначала настройте токен бота",
-                    Toast.LENGTH_LONG
+                    android.widget.Toast.LENGTH_LONG
                 ).show()
                 return
             }
@@ -167,13 +167,13 @@ class MainActivity : ComponentActivity() {
             val serviceIntent = Intent(this, TelegramBotService::class.java)
             Log.d(TAG, "startBot: Intent создан")
 
-//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 Log.d(TAG, "startBot: startForegroundService (Android 8+)")
                 startForegroundService(serviceIntent)
-//            } else {
-//                Log.d(TAG, "startBot: startService (Android <8)")
-//                startService(serviceIntent)
-//            }
+            } else {
+                Log.d(TAG, "startBot: startService (Android <8)")
+                startService(serviceIntent)
+            }
 
             preferencesManager.setBotEnabled(true)
             Log.d(TAG, "startBot: botEnabled сохранён как true")
@@ -181,15 +181,15 @@ class MainActivity : ComponentActivity() {
             isBotRunning.value = true
             Log.d(TAG, "startBot: isBotRunning установлен в true")
 
-            Toast.makeText(this, "Бот запущен", Toast.LENGTH_SHORT)
+            android.widget.Toast.makeText(this, "Бот запущен", android.widget.Toast.LENGTH_SHORT)
                 .show()
             Log.d(TAG, "startBot: УСПЕШНО ЗАВЕРШЁН")
         } catch (e: Exception) {
             Log.e(TAG, "startBot: ОШИБКА!", e)
-            Toast.makeText(
+            android.widget.Toast.makeText(
                 this,
                 "Ошибка запуска: ${e.message}",
-                Toast.LENGTH_LONG
+                android.widget.Toast.LENGTH_LONG
             ).show()
         }
     }
@@ -212,7 +212,7 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "stopBot: botEnabled сохранён как false")
 
             isBotRunning.value = false
-            Toast.makeText(this, "Бот остановлен", Toast.LENGTH_SHORT)
+            android.widget.Toast.makeText(this, "Бот остановлен", android.widget.Toast.LENGTH_SHORT)
                 .show()
             Log.d(TAG, "stopBot: УСПЕШНО ЗАВЕРШЁН")
         } catch (e: Exception) {
@@ -263,7 +263,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(
                 this,
                 "Настройки сохранены",
-                Toast.LENGTH_SHORT
+                android.widget.Toast.LENGTH_SHORT
             ).show()
             Log.d(TAG, "saveSettings: УСПЕШНО")
         } catch (e: Exception) {
@@ -416,8 +416,9 @@ fun BotControlScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "• Бот проверяет заказы каждые 15 минут\n" +
-                            "• Для работы требуется интернет\n" +
-                            "• Токен бота можно получить у @BotFather\n" +
+                            "• Для работы требуется интернет и токены телеграм бота и WB.\n" +
+                            "• В Настройках есть инструкции как получить токены.\n" +
+                            "• Токены хранятся только на Вашем устройстве в этом приложении.\n" +
                             "• После запуска напишите в чат, где добавлен телеграмм бот, слово - СТАРТ, для активации",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
