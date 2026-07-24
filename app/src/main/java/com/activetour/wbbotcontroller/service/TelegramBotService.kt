@@ -272,9 +272,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             var countOrders = orderIds.size
             var supplyType = ""
             var success = false
-            var supplyExists = currentSupplyId == null
+            var supplyNotFound = currentSupplyId == null
 
-            if (supplyExists) {
+            if (supplyNotFound) {
+                sendMessageToAllChats("\uD83D\uDCE6\uD83D\uDD12 *Поставка закрыта* ")
                 supplyType = "НОВУЮ (созданную мной)"
 
                 val supplyName = "Поставка от ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}"
@@ -290,8 +291,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             if (success) {
 
-                if (!supplyExists) {
-                    delay(1000) // Ждём обновления данных
+                if (!supplyNotFound) {
+                    delay(2000) // Ждём обновления данных
                     countOrders = supplyChecker.getCountOrdersInSupply(currentSupplyId!!)
                 }
 
