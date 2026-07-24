@@ -74,7 +74,7 @@ class PreferencesManager(context: Context) {
     ) ?: "https://marketplace-api-sandbox.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
 
     fun getWbIdOrdersInSupplyUrl(url: String) = prefs.edit().putString("wb_id_orders_in_supply_url", url).apply()
-
+// ---------------------------------------------------
 
     // Добавить поставку к доставке
     fun getWbAddNumberCargoSpacesUrl(): String = prefs.getString(   // URL Добавить грузоместа к поставке
