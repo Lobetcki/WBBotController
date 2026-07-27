@@ -283,15 +283,12 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
             }
 
+            if (!supplyNotFound) {
+                countOrders = countOrders + supplyChecker.getCountOrdersInSupply(currentSupplyId!!)
+            }
             success = supplyChecker.addOrdersToSupply(currentSupplyId!!, orderIds)
 
             if (success) {
-
-                if (!supplyNotFound) {
-                    delay(2000) // Ждём обновления данных
-                    countOrders = supplyChecker.getCountOrdersInSupply(currentSupplyId!!)
-                }
-
                 val message = buildString {
                     appendLine("В $supplyType поставку: $currentSupplyId добавлены заказы:")
                     appendLine(ordersMessage)
