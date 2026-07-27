@@ -91,6 +91,7 @@ fun SettingsScreen(
     var wbOrdersUrl by remember { mutableStateOf(preferencesManager.getWbOrdersUrl()) }
     var wbSuppliesUrl by remember { mutableStateOf(preferencesManager.getWbSuppliesUrl()) }
     var wbAddOrdersUrl by remember { mutableStateOf(preferencesManager.getWbAddOrdersUrl()) }
+    var wbIdOrdersInSupplyUrl by remember { mutableStateOf(preferencesManager.getWbIdOrdersInSupplyUrl()) }
 
     // Application Settings
     var checkInterval by remember { mutableStateOf(preferencesManager.getCheckIntervalMinutes().toString()) }
@@ -236,6 +237,15 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = wbIdOrdersInSupplyUrl,
+                onValueChange = { wbIdOrdersInSupplyUrl = it },
+                label = { Text("URL id всех заказов в поставке") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
 
@@ -263,9 +273,11 @@ fun SettingsScreen(
                     // Сохраняем только нужные настройки
                     preferencesManager.setBotToken(botToken)
                     preferencesManager.setWbApiToken(wbApiToken)
+
                     preferencesManager.setWbOrdersUrl(wbOrdersUrl)
                     preferencesManager.setWbSuppliesUrl(wbSuppliesUrl)
                     preferencesManager.setWbAddOrdersUrl(wbAddOrdersUrl)
+                    preferencesManager.setWbIdOrdersInSupplyUrl(wbIdOrdersInSupplyUrl)
 
                     // Сохраняем ID подгруппы (если введено число)
                     val threadId = messageThreadId.toIntOrNull() ?: 0
@@ -355,6 +367,7 @@ fun SettingsScreen(
                         wbOrdersUrl = "https://marketplace-api.wildberries.ru/api/v3/orders/new"
                         wbSuppliesUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies"
                         wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
+                        wbIdOrdersInSupplyUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
                         checkInterval = "15"
                         showResetDialog = false
                         saveSuccess = false
