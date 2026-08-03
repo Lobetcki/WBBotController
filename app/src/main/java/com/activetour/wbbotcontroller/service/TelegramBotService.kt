@@ -225,13 +225,11 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             // Формируем сообщение о новых заказах
             val ordersMessage = buildString {
-//                appendLine("📦 *НОВЫЕ ЗАКАЗЫ!*")
-//                appendLine()
                 actualNewOrders.forEach { order ->
+                    appendLine()
                     appendLine("• *${order.article}*")
                     appendLine("  Номер: `${order.id}`")
                     appendLine("  Дата: ${order.createdAt?.replace("T", " ")?.replace("Z", "")}")
-                    appendLine()
                 }
             }
 //            sendMessageToAllChats(ordersMessage)
@@ -292,7 +290,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 val message = buildString {
                     appendLine("В $supplyType поставку: $currentSupplyId добавлены заказы:")
                     appendLine(ordersMessage)
-                    appendLine("В поставке заказов:   $countOrders")
+                    appendLine("В поставке заказов: $countOrders")
                 }
                 // ✅ Отправляем ВО ВСЕ чаты
                 sendMessageToAllChats(message)
