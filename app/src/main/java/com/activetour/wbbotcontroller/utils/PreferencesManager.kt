@@ -71,6 +71,34 @@ class PreferencesManager(context: Context) {
 
     fun setWbIdOrdersInSupplyUrl(url: String) = prefs.edit().putString("wb_id_orders_in_supply_url", url).apply()
 
+    fun getWbStickersUrl(): String = prefs.getString(  // URL стикеров заказов
+        "wb_stickers_url",
+        "https://marketplace-api.wildberries.ru/api/v3/orders/stickers"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/orders/stickers"
+
+    fun setWbStickersUrl(url: String) = prefs.edit().putString("wb_stickers_url", url).apply()
+
+    fun getWBQRCodeSuppliesUrl(): String = prefs.getString(   // URL QR-кода поставки
+        "wb_qr_codes_url",
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/barcode"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/barcode"
+
+    fun setWBQRCodeSuppliesUrl(url: String) = prefs.edit().putString("wb_qr_codes_url", url).apply()
+
+    fun getWbAddNumberCargoSpacesUrl(): String = prefs.getString(   // URL добавления грузомест
+        "wb_add_number_cargo_spaces_url",
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
+
+    fun setWbAddNumberCargoSpacesUrl(url: String) = prefs.edit().putString("wb_add_number_cargo_spaces_url", url).apply()
+
+    fun getWBOrdersDetailsUrl(): String = prefs.getString(   // URL деталей заказов
+        "wb_orders_details_url",
+        "https://marketplace-api.wildberries.ru/api/v3/orders"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/orders"
+
+    fun setOrdersDetailsUrl(url: String) = prefs.edit().putString("wb_orders_details_url", url).apply()
+
     // ==================== Application Settings ====================
 
     fun getNextForListSupplies(): Long = prefs.getLong("next_for_list_supplies", 0)
@@ -78,6 +106,15 @@ class PreferencesManager(context: Context) {
 
     fun getCheckIntervalMinutes(): Int = prefs.getInt("check_interval_minutes", 15)
     fun setCheckIntervalMinutes(minutes: Int) = prefs.edit().putInt("check_interval_minutes", minutes).apply()
+
+    fun getNumberCargoSpaces(): Int = prefs.getInt("number_cargo_spaces", 1)
+    fun setNumberCargoSpaces(numberCargoSpaces: Int) = prefs.edit().putInt("number_cargo_spaces", numberCargoSpaces).apply()
+
+    fun getLimitForSelectionList(): Int = prefs.getInt("limit_for_selection_list", 1000)
+    fun setLimitForSelectionList(limit: Int) = prefs.edit().putInt("limit_for_selection_list", limit).apply()
+
+    fun getTypeFileQRCodes(): String = prefs.getString("type_file_qr_codes", "png") ?: "png"
+    fun setTypeFileQRCodes(typeFileQRCodes: String) = prefs.edit().putString("type_file_qr_codes", typeFileQRCodes).apply()
 
     // ==================== Bot State (для автозапуска) ====================
 

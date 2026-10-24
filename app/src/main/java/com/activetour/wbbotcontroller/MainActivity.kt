@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
                             onStopBot = { stopBot() },
                             onSaveSettings = { token -> saveSettings(token) },
                             onCheckNow = { checkNow() },
+                            onGetQRCodesAndStickers = { sendToDeliveryAndGetQRCodes() },
                             onOpenSettings = { openSettings() },
                             getBotToken = { preferencesManager.getBotToken() }
                         )
@@ -229,6 +230,18 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, "Проверка запущена", Toast.LENGTH_SHORT).show()
     }
 
+    private fun sendToDeliveryAndGetQRCodes() {
+        if (preferencesManager.getAllChatIds().isEmpty()) {
+            Toast.makeText(this, "Бот не активирован в чате Telegram", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val intent = Intent(this, TelegramBotService::class.java)
+        intent.putExtra("command", "sendToDeliveryAndGetQRCodes")
+        startService(intent)
+        Toast.makeText(this, "Запрос QR-кодов и стикеров запущен", Toast.LENGTH_SHORT).show()
+    }
+
     private fun saveSettings(token: String) {
         Log.d(TAG, "saveSettings: token = ${token.take(10)}...")
         try {
@@ -258,6 +271,7 @@ fun BotControlScreen(
     onStopBot: () -> Unit,
     onSaveSettings: (String) -> Unit,
     onCheckNow: () -> Unit,
+    onGetQRCodesAndStickers: () -> Unit,
     onOpenSettings: () -> Unit,
     getBotToken: () -> String
 ) {
@@ -334,6 +348,16 @@ fun BotControlScreen(
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
         ) {
             Text("🔍 Проверить заказы сейчас")
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            onClick = onGetQRCodesAndStickers,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+        ) {
+            Text("🏷 Получить QR-коды и стикеры поставки")
         }
 
         Spacer(modifier = Modifier.height(24.dp))

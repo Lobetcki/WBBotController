@@ -174,7 +174,7 @@ class WbSupplyChecker(private val context: Context) {
 
     suspend fun getCountOrdersInSupply(supplyId: String): Int = withContext(Dispatchers.IO) {
 
-        val url = String.format(prefs.getWbIdOrdersInSupplyUrl(), supplyId)
+        val url = prefs.getWbIdOrdersInSupplyUrl().replace("{supplyId}", supplyId)
 
         val token = prefs.getWbApiToken()
         if (token.isBlank()) {

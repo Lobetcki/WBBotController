@@ -17,6 +17,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.activetour.wbbotcontroller.MainActivity
+import com.activetour.wbbotcontroller.model.StickerForOrder
 import com.activetour.wbbotcontroller.model.WBOrder
 import com.activetour.wbbotcontroller.utils.PreferencesManager
 import com.activetour.wbbotcontroller.worker.CheckOrdersWorker
@@ -31,9 +32,12 @@ import kotlinx.coroutines.withContext
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.objects.InputFile
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException
+import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
@@ -332,13 +336,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         // Отправляем приветственное сообщение
                         sendMessage(chatId, buildString {
                             appendLine("✅ *Бот активирован!*")
-//                            appendLine("🤖 Теперь я буду отслеживать заказы Wildberries")
-//                            appendLine("и отправлять уведомления в этот чат.")
-//                            appendLine()
-//                            appendLine("📌 *Команды:*")
+                            appendLine("📌 *Команды:*")
                             appendLine("• `Жиган проверь` - проверить заказы сейчас")
-//                            appendLine("• `/status` - статус бота")
-//                            appendLine("• `/help` - справка")
+                            appendLine("• `Жиган поставка` - получить стикеры и QR-код поставки")
                         })
                         // После активации можно сразу проверить заказы (опционально)
                         serviceScope.launch {
@@ -355,8 +355,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     text.contains("Жиган проверь", ignoreCase = true) || text.equals("/check", ignoreCase = true) -> {
                         sendMessageToAllChats("🔍 Выполняю проверку...")
                         serviceScope.launch {
-//                            checkAndNotifyAboutOrdersForChat(chatId)
                             checkAndNotifyAboutOrders(false)   // ← рассылает во все чаты
+                        }
+                    }
+
+                    text.contains("Жиган поставка", ignoreCase = true) || text.contains("Жиган qr", ignoreCase = true) || text.contains("Жиган стикеры", ignoreCase = true) || text.equals("/qr", ignoreCase = true) -> {
+                        serviceScope.launch {
+                            sendToDeliveryAndGetQRCodes()
                         }
                     }
 
@@ -373,6 +378,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         sendMessage(chatId, buildString {
                             appendLine("🤖 *Доступные команды:*")
                             appendLine("• `Жиган проверь` - проверить заказы")
+                            appendLine("• `Жиган поставка` - получить стикеры и QR-код поставки")
                             appendLine("• `/status` - статус бота")
                             appendLine("• `/help` - эта справка")
                         })
@@ -536,12 +542,125 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         }
     }
 
+    /**
+     * Обработка запроса на получение стикеров и QR-кодов поставки и передача в доставку
+     */
+    private suspend fun sendToDeliveryAndGetQRCodes() {
+        Log.d(TAG, "========== sendToDeliveryAndGetQRCodes: НАЧАЛО ==========")
+        try {
+            sendMessageToAllChats("🔄 Запрос стикеров и QR-кодов поставки от Wildberries...")
+
+            val supplyChecker = WbSupplyChecker(applicationContext)
+            currentSupplyId = supplyChecker.getLastActiveSupply()
+
+            if (currentSupplyId == null) {
+                sendMessageToAllChats("❌ Активной поставки для обработки не найдено!")
+                return
+            }
+
+            val delivery = WBDeliveryAndQRCodes(applicationContext)
+            sendMessageToAllChats("📦 Найдена активная поставка: `$currentSupplyId`")
+
+            // 1. Добавляем грузоместа
+            delivery.addCargoLocations(currentSupplyId!!)
+
+            // 2. Получаем и отправляем QR-код самой поставки
+            val qrCodeFile = delivery.getQRCodesSupplies(currentSupplyId!!)
+            if (qrCodeFile != null && qrCodeFile.exists()) {
+                sendDocumentToAllChats(qrCodeFile, "📷 QR-код поставки `$currentSupplyId`")
+                qrCodeFile.delete() // Удаляем временный файл сразу после отправки
+            } else {
+                sendMessageToAllChats("⚠️ Не удалось получить QR-код поставки `$currentSupplyId`")
+            }
+
+            // 3. Получаем и отправляем стикеры для заказов в поставке
+            val stickers = delivery.getStickersForOrders(currentSupplyId!!)
+            if (stickers.isNotEmpty()) {
+                sendMessageToAllChats("🏷 Получено стикеров для заказов: ${stickers.size}. Отправляю...")
+                sendStickersToAllChats(stickers, "Стикер поставки `$currentSupplyId`")
+                // Удаляем временные файлы стикеров сразу после отправки
+                stickers.forEach { try { it.file.delete() } catch (_: Exception) {} }
+            } else {
+                sendMessageToAllChats("⚠️ Не найдено стикеров для заказов в поставке `$currentSupplyId`")
+            }
+
+            // 4. Генерируем Лист подбора (CSV)
+            val excelFile = delivery.generateSelectionSheet(currentSupplyId!!)
+            if (excelFile != null && excelFile.exists()) {
+                sendDocumentToAllChats(excelFile, "📋 Лист подбора для поставки `$currentSupplyId`")
+                excelFile.delete()
+            }
+
+            // 5. Передаем поставку в доставку
+            val deliverySuccess = delivery.sendToDelivery(currentSupplyId!!)
+            if (deliverySuccess) {
+                sendMessageToAllChats("✅ Поставка `$currentSupplyId` успешно передана в доставку!")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ sendToDeliveryAndGetQRCodes: ОШИБКА!", e)
+            sendMessageToAllChats("❌ *Ошибка при обработке поставки*\n${e.message}")
+        }
+    }
+
+    /**
+     * Отправление документа/файла во все активные чаты
+     */
+    private fun sendDocumentToAllChats(document: File, caption: String = "") {
+        if (!document.exists()) return
+        val chatIds = preferencesManager.getAllChatIds()
+        if (chatIds.isEmpty()) {
+            Log.d(TAG, "Нет активных чатов для отправки документа")
+            return
+        }
+
+        val messageThreadId = preferencesManager.getMessageThreadId()
+        for (chatId in chatIds) {
+            try {
+                val sendDocument = SendDocument.builder()
+                    .chatId(chatId)
+                    .document(InputFile(document))
+                    .caption(caption)
+                    .apply {
+                        if (messageThreadId > 0) {
+                            this.messageThreadId(messageThreadId)
+                        }
+                    }
+                    .build()
+
+                telegramClient.execute(sendDocument)
+                Log.d(TAG, "✅ Документ отправлен в чат $chatId: ${document.name}")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Ошибка отправки документа в чат $chatId: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * Отправление списка стикеров заказов во все активные чаты
+     */
+    private fun sendStickersToAllChats(stickers: List<StickerForOrder>, caption: String = "") {
+        if (stickers.isEmpty()) return
+        for (sticker in stickers) {
+            if (sticker.file.exists()) {
+                val label = "Стикер заказа №${sticker.orderId} (${sticker.partA} ${sticker.partB})"
+                sendDocumentToAllChats(sticker.file, "$caption\n$label")
+            }
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Обработка ручной проверки
+        // Обработка команд
         when (intent?.getStringExtra("command")) {
             "checkNow" -> {
                 serviceScope.launch {
                     checkAndNotifyAboutOrders(false)
+                }
+            }
+
+            "sendToDeliveryAndGetQRCodes" -> {
+                serviceScope.launch {
+                    sendToDeliveryAndGetQRCodes()
                 }
             }
 
@@ -557,7 +676,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
             }
         }
-        // Остальной код (startForeground и т.д.) – уже есть
         return START_STICKY
     }
 }
