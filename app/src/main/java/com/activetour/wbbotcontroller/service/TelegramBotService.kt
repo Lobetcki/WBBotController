@@ -564,37 +564,36 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             // 1. Добавляем грузоместа
             delivery.addCargoLocations(currentSupplyId!!)
 
-            // 2. Получаем и отправляем QR-код самой поставки
-            val qrCodeFile = delivery.getQRCodesSupplies(currentSupplyId!!)
-            if (qrCodeFile != null && qrCodeFile.exists()) {
-                sendDocumentToAllChats(qrCodeFile, "📷 QR-код поставки `$currentSupplyId`")
-                qrCodeFile.delete() // Удаляем временный файл сразу после отправки
-            } else {
-                sendMessageToAllChats("⚠️ Не удалось получить QR-код поставки `$currentSupplyId`")
+            // 2. Генерируем и отправляем Лист подбора (CSV)
+            val excelFile = delivery.generateSelectionSheet(currentSupplyId!!)
+            if (excelFile != null && excelFile.exists()) {
+                sendDocumentToAllChats(excelFile, "📋 Лист подбора для поставки `$currentSupplyId`")
+                try { excelFile.delete() } catch (_: Exception) {}
             }
 
-            // 3. Получаем и отправляем стикеры для заказов в поставке
+            // 3. Получаем и отправляем стикеры для заказов в поставке (на товары)
             val stickers = delivery.getStickersForOrders(currentSupplyId!!)
             if (stickers.isNotEmpty()) {
                 sendMessageToAllChats("🏷 Получено стикеров для заказов: ${stickers.size}. Отправляю...")
                 sendStickersToAllChats(stickers, "Стикер поставки `$currentSupplyId`")
-                // Удаляем временные файлы стикеров сразу после отправки
                 stickers.forEach { try { it.file.delete() } catch (_: Exception) {} }
             } else {
                 sendMessageToAllChats("⚠️ Не найдено стикеров для заказов в поставке `$currentSupplyId`")
             }
 
-            // 4. Генерируем Лист подбора (CSV)
-            val excelFile = delivery.generateSelectionSheet(currentSupplyId!!)
-            if (excelFile != null && excelFile.exists()) {
-                sendDocumentToAllChats(excelFile, "📋 Лист подбора для поставки `$currentSupplyId`")
-                excelFile.delete()
-            }
-
-            // 5. Передаем поставку в доставку
+            // 4. Передаем поставку в доставку в WB
             val deliverySuccess = delivery.sendToDelivery(currentSupplyId!!)
             if (deliverySuccess) {
-                sendMessageToAllChats("✅ Поставка `$currentSupplyId` успешно передана в доставку!")
+                sendMessageToAllChats("✅ Поставка `$currentSupplyId` переведена в статус 'В доставке'")
+            }
+
+            // 5. Получаем и отправляем QR-код самой поставки (на коробку/паллету)
+            val qrCodeFile = delivery.getQRCodesSupplies(currentSupplyId!!)
+            if (qrCodeFile != null && qrCodeFile.exists()) {
+                sendDocumentToAllChats(qrCodeFile, "📷 QR-код поставки `$currentSupplyId` (на коробку)")
+                try { qrCodeFile.delete() } catch (_: Exception) {}
+            } else {
+                sendMessageToAllChats("⚠️ Не удалось получить QR-код поставки `$currentSupplyId`")
             }
 
         } catch (e: Exception) {
