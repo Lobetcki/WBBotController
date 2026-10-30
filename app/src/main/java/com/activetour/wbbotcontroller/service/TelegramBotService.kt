@@ -55,6 +55,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     // ID текущей активной поставки
     private var currentSupplyId: String? = null
 
+    // Чаты, ожидающие от пользователя ввода количества коробок (грузомест)
+    private val awaitingCargoSpacesChats = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
     companion object {
         private const val TAG = "TelegramBotService"
         var isRunning = false
@@ -350,6 +353,30 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
 
                 // --- Чат уже активирован – обрабатываем команды обычным образом ---
+                // 1. Проверяем, ожидает ли чат ввода количества коробок (грузомест)
+                if (awaitingCargoSpacesChats.contains(chatId)) {
+                    val trimmed = text.trim()
+                    if (trimmed.equals("Отмена", ignoreCase = true) || trimmed.equals("/cancel", ignoreCase = true)) {
+                        awaitingCargoSpacesChats.remove(chatId)
+                        sendMessage(chatId, "❌ *Действие отменено.*")
+                        return
+                    }
+
+                    val count = trimmed.toIntOrNull()
+                    if (count != null && count > 0) {
+                        awaitingCargoSpacesChats.remove(chatId)
+                        preferencesManager.setNumberCargoSpaces(count)
+                        sendMessage(chatId, "✅ Установлено коробок: *$count*. Выполняю запрос поставки...")
+                        serviceScope.launch {
+                            sendToDeliveryAndGetQRCodes()
+                        }
+                        return
+                    } else {
+                        sendMessage(chatId, "⚠️ *Пожалуйста, укажите количество коробок числом (например: 1, 2, 3)* или отправьте *Отмена*.")
+                        return
+                    }
+                }
+
                 // Обработка команд
                 when {
                     text.contains("Жиган проверь", ignoreCase = true) || text.equals("/check", ignoreCase = true) -> {
@@ -359,10 +386,16 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         }
                     }
 
-                    text.contains("Жиган поставка", ignoreCase = true) || text.contains("Жиган qr", ignoreCase = true) || text.contains("Жиган стикеры", ignoreCase = true) || text.equals("/qr", ignoreCase = true) -> {
-                        serviceScope.launch {
-                            sendToDeliveryAndGetQRCodes()
-                        }
+                    text.contains("Жиган поставка", ignoreCase = true)
+                            || text.contains("Жиган qr", ignoreCase = true)
+                            || text.contains("Жиган стикеры", ignoreCase = true)
+                            || text.equals("/qr", ignoreCase = true) -> {
+                        awaitingCargoSpacesChats.add(chatId)
+                        sendMessage(chatId, buildString {
+                            appendLine("📦 *Формирование поставки*")
+                            appendLine("Укажите количество коробок (грузомест) числом (например: 1, 2, 3...)")
+                            appendLine("Или отправьте *Отмена* для отмены действия.")
+                        })
                     }
 
                     text.equals("/status", ignoreCase = true) -> {

@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -97,9 +99,10 @@ class MainActivity : ComponentActivity() {
                             onStopBot = { stopBot() },
                             onSaveSettings = { token -> saveSettings(token) },
                             onCheckNow = { checkNow() },
-                            onGetQRCodesAndStickers = { sendToDeliveryAndGetQRCodes() },
+                            onGetQRCodesAndStickers = { count -> sendToDeliveryAndGetQRCodes(count) },
                             onOpenSettings = { openSettings() },
-                            getBotToken = { preferencesManager.getBotToken() }
+                            getBotToken = { preferencesManager.getBotToken() },
+                            getCargoSpacesCount = { preferencesManager.getNumberCargoSpaces() }
                         )
                     }
                 }
@@ -230,7 +233,8 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, "Проверка запущена", Toast.LENGTH_SHORT).show()
     }
 
-    private fun sendToDeliveryAndGetQRCodes() {
+    private fun sendToDeliveryAndGetQRCodes(cargoSpaces: Int) {
+        preferencesManager.setNumberCargoSpaces(cargoSpaces)
         if (preferencesManager.getAllChatIds().isEmpty()) {
             Toast.makeText(this, "Бот не активирован в чате Telegram", Toast.LENGTH_SHORT).show()
             return
@@ -239,7 +243,7 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, TelegramBotService::class.java)
         intent.putExtra("command", "sendToDeliveryAndGetQRCodes")
         startService(intent)
-        Toast.makeText(this, "Запрос QR-кодов и стикеров запущен", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Запрос QR-кодов запущен ($cargoSpaces коробок)", Toast.LENGTH_SHORT).show()
     }
 
     private fun saveSettings(token: String) {
@@ -271,12 +275,15 @@ fun BotControlScreen(
     onStopBot: () -> Unit,
     onSaveSettings: (String) -> Unit,
     onCheckNow: () -> Unit,
-    onGetQRCodesAndStickers: () -> Unit,
+    onGetQRCodesAndStickers: (Int) -> Unit,
     onOpenSettings: () -> Unit,
-    getBotToken: () -> String
+    getBotToken: () -> String,
+    getCargoSpacesCount: () -> Int
 ) {
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showCargoDialog by remember { mutableStateOf(false) }
     var tempToken by remember { mutableStateOf(getBotToken()) }
+    var cargoSpacesInput by remember { mutableStateOf(getCargoSpacesCount().toString()) }
 
     Column(
         modifier = Modifier
@@ -353,7 +360,10 @@ fun BotControlScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(
-            onClick = onGetQRCodesAndStickers,
+            onClick = {
+                cargoSpacesInput = getCargoSpacesCount().toString()
+                showCargoDialog = true
+            },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
         ) {
@@ -430,6 +440,44 @@ fun BotControlScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showSettingsDialog = false }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+
+    if (showCargoDialog) {
+        AlertDialog(
+            onDismissRequest = { showCargoDialog = false },
+            title = { Text("Укажите количество коробок") },
+            text = {
+                Column {
+                    Text("Укажите количество коробок (грузомест):")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = cargoSpacesInput,
+                        onValueChange = { input -> cargoSpacesInput = input.filter { it.isDigit() } },
+                        label = { Text("Количество коробок") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val count = cargoSpacesInput.toIntOrNull() ?: 1
+                        val finalCount = if (count < 1) 1 else count
+                        showCargoDialog = false
+                        onGetQRCodesAndStickers(finalCount)
+                    }
+                ) {
+                    Text("Продолжить")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCargoDialog = false }) {
                     Text("Отмена")
                 }
             }

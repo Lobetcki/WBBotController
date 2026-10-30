@@ -70,9 +70,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
     /**
      * Получение информации о деталях заказов в поставке
      */
-    suspend fun getOrdersDetailsBySupply(
-        orderIds: List<Long>,
-        supplyId: String
+    suspend fun getOrdersDetailsBySupply(orderIds: List<Long>, supplyId: String
     ): List<WBOrder>? = withContext(Dispatchers.IO) {
         if (orderIds.isEmpty()) return@withContext emptyList()
 
@@ -219,7 +217,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
     }
 
     /**
-     * Запрос QR-кода самой поставки от WB API
+     * Запрос QR-кода самой поставки на коробку от WB API
      */
     suspend fun getQRCodesSupplies(supplyId: String): File? = withContext(Dispatchers.IO) {
         val token = prefs.getWbApiToken()

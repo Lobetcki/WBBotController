@@ -78,10 +78,10 @@ class PreferencesManager(context: Context) {
 
     fun setWbStickersUrl(url: String) = prefs.edit().putString("wb_stickers_url", url).apply()
 
-    fun getWBQRCodeSuppliesUrl(): String = prefs.getString(   // URL QR-кода поставки
+    fun getWBQRCodeSuppliesUrl(): String = prefs.getString(   // URL QR-кода грузомест поставки
         "wb_qr_codes_url",
-        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/barcode"
-    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/barcode"
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx/stickers"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx/stickers"
 
     fun setWBQRCodeSuppliesUrl(url: String) = prefs.edit().putString("wb_qr_codes_url", url).apply()
 
