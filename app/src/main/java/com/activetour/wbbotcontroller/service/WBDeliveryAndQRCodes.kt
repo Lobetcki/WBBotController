@@ -217,21 +217,95 @@ class WBDeliveryAndQRCodes(private val context: Context) {
     }
 
     /**
-     * Запрос QR-кода самой поставки на коробку от WB API
+     * Запрос QR-кодов грузомест (коробок) поставки от WB API
      */
-    suspend fun getQRCodesSupplies(supplyId: String): File? = withContext(Dispatchers.IO) {
+    suspend fun getQRCodesSupplies(supplyId: String): List<File> = withContext(Dispatchers.IO) {
         val token = prefs.getWbApiToken()
         if (token.isBlank()) {
             Log.e(TAG, "❌ WB API токен не настроен!")
-            return@withContext null
+            return@withContext emptyList()
+        }
+
+        // 1. Получаем список ID грузомест (коробок) для этой поставки.
+        val trbxIds = getTrbxIdsForSupply(supplyId)
+        if (trbxIds.isNullOrEmpty()) {
+            Log.e(TAG, "❌ Не удалось получить ID грузомест для поставки $supplyId")
+            return@withContext emptyList()
         }
 
         val type = prefs.getTypeFileQRCodes()
         val rawUrl = String.format(prefs.getWBQRCodeSuppliesUrl(), supplyId)
+
+        // Создаем URL с параметром type (если API его поддерживает, судя по доке, он возвращает SVG/PNG/ZPL)
         val url = rawUrl.toHttpUrlOrNull()
             ?.newBuilder()
             ?.addQueryParameter("type", type)
-            ?.build() ?: return@withContext null
+            ?.build() ?: return@withContext emptyList()
+
+        // 2. Формируем JSON тело запроса с массивом trbxIds
+        val jsonBody = gson.toJson(mapOf("trbxIds" to trbxIds))
+        val body = jsonBody.toRequestBody(mediaType)
+
+        // 3. Меняем GET на POST
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $token")
+            .post(body) // <--- ИЗМЕНЕНО НА POST
+            .build()
+
+        return@withContext try {
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val bodyString = response.body?.string() ?: return@withContext emptyList()
+                val jsonObject = JsonParser.parseString(bodyString).asJsonObject
+
+                // В ответе приходит массив стикеров (аналогично обычным стикерам заказов)
+                if (!jsonObject.has("stickers")) return@withContext emptyList()
+
+                val stickersArray = jsonObject.getAsJsonArray("stickers")
+                val resultFiles = mutableListOf<File>()
+
+                for (element in stickersArray) {
+                    val stickerObj = element.asJsonObject
+                    val trbxId = if (stickerObj.has("id")) stickerObj.get("id").asString else "unknown"
+                    // В ответе поле с картинкой обычно называется file или barcode
+                    val fileBase64 = if (stickerObj.has("file")) {
+                        stickerObj.get("file").asString
+                    } else if (stickerObj.has("barcode")) {
+                        stickerObj.get("barcode").asString
+                    } else {
+                        ""
+                    }
+
+                    if (fileBase64.isNotEmpty()) {
+                        try {
+                            val fileBytes = Base64.decode(fileBase64, Base64.DEFAULT)
+                            val tempFile = File(context.cacheDir, "qrcode_trbx_${trbxId}.$type")
+                            FileOutputStream(tempFile).use { fos -> fos.write(fileBytes) }
+                            resultFiles.add(tempFile)
+                            Log.i(TAG, "✅ QR-код грузоместа $trbxId сохранён: ${tempFile.absolutePath}")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "❌ Ошибка сохранения файла для грузоместа $trbxId", e)
+                        }
+                    }
+                }
+                resultFiles
+            } else {
+                Log.e(TAG, "❌ Ошибка получения QR-кодов грузомест. Код: ${response.code}, Ответ: ${response.body?.string()}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Ошибка получения QR-кодов: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    /**
+     * Вспомогательный метод для получения ID грузомест поставки
+     */
+    private suspend fun getTrbxIdsForSupply(supplyId: String): List<String>? = withContext(Dispatchers.IO) {
+        val token = prefs.getWbApiToken()
+        val url = String.format(prefs.getWBListBoxIDsUrl(), supplyId)
 
         val request = Request.Builder()
             .url(url)
@@ -239,35 +313,20 @@ class WBDeliveryAndQRCodes(private val context: Context) {
             .get()
             .build()
 
-        return@withContext try {
+        try {
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
                 val bodyString = response.body?.string() ?: return@withContext null
                 val jsonObject = JsonParser.parseString(bodyString).asJsonObject
-                val base64Data = if (jsonObject.has("file")) {
-                    jsonObject.get("file").asString
-                } else if (jsonObject.has("barcode")) {
-                    jsonObject.get("barcode").asString
-                } else {
-                    null
-                }
-
-                if (base64Data.isNullOrEmpty()) {
-                    Log.e(TAG, "❌ Поле 'file'/'barcode' отсутствует или пусто")
-                    return@withContext null
-                }
-
-                val fileBytes = Base64.decode(base64Data, Base64.DEFAULT)
-                val tempFile = File(context.cacheDir, "qrcode_supply_${supplyId}.$type")
-                FileOutputStream(tempFile).use { fos -> fos.write(fileBytes) }
-                Log.i(TAG, "✅ QR-код поставки сохранён: ${tempFile.absolutePath}")
-                tempFile
+                // Предполагается, что API возвращает объект с массивом "trbxIds" или просто массив
+                val trbxArray = jsonObject.getAsJsonArray("trbxIds") ?: return@withContext null
+                trbxArray.map { it.asString }
             } else {
-                Log.e(TAG, "❌ Ошибка получения QR-кода поставки. Код: ${response.code}")
+                Log.e(TAG, "❌ Ошибка получения списка грузомест. Код: ${response.code}")
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Ошибка получения QR-кода: ${e.message}", e)
+            Log.e(TAG, "❌ Ошибка: ${e.message}", e)
             null
         }
     }
