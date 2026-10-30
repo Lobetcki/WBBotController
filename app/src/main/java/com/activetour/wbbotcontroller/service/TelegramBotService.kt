@@ -621,10 +621,17 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             }
 
             // 5. Получаем и отправляем QR-код самой поставки (на коробку/паллету)
-            val qrCodeFile = delivery.getQRCodesSupplies(currentSupplyId!!)
-            if (qrCodeFile != null && qrCodeFile.exists()) {
-                sendDocumentToAllChats(qrCodeFile, "📷 QR-код поставки `$currentSupplyId` (на коробку)")
-                try { qrCodeFile.delete() } catch (_: Exception) {}
+            val qrCodeFiles = delivery.getQRCodesSupplies(currentSupplyId!!)
+            if (qrCodeFiles.isNotEmpty()) {
+                qrCodeFiles.forEachIndexed { index, qrCodeFile ->
+                    if (qrCodeFile.exists()) {
+                        sendDocumentToAllChats(
+                            qrCodeFile,
+                            "📷 QR-стикер коробки ${index + 1} поставки `$currentSupplyId`"
+                        )
+                    }
+                    try { qrCodeFile.delete() } catch (_: Exception) {}
+                }
             } else {
                 sendMessageToAllChats("⚠️ Не удалось получить QR-код поставки `$currentSupplyId`")
             }

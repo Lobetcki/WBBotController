@@ -233,24 +233,27 @@ class WBDeliveryAndQRCodes(private val context: Context) {
             return@withContext emptyList()
         }
 
-        val type = prefs.getTypeFileQRCodes()
+        val type = prefs.getTypeFileQRCodes().lowercase()
+        if (type !in setOf("svg", "zplv", "zplh", "png")) {
+            Log.e(TAG, "Неподдерживаемый формат QR-стикера грузоместа: $type")
+            return@withContext emptyList()
+        }
         val rawUrl = String.format(prefs.getWBQRCodeSuppliesUrl(), supplyId)
 
-        // Создаем URL с параметром type (если API его поддерживает, судя по доке, он возвращает SVG/PNG/ZPL)
+        // Для этого метода WB требует параметр type: svg, zplv, zplh или png.
         val url = rawUrl.toHttpUrlOrNull()
             ?.newBuilder()
             ?.addQueryParameter("type", type)
             ?.build() ?: return@withContext emptyList()
 
-        // 2. Формируем JSON тело запроса с массивом trbxIds
+        // Формируем JSON тело запроса с массивом trbxIds
         val jsonBody = gson.toJson(mapOf("trbxIds" to trbxIds))
         val body = jsonBody.toRequestBody(mediaType)
 
-        // 3. Меняем GET на POST
         val request = Request.Builder()
             .url(url)
-            .addHeader("Authorization", "Bearer $token")
-            .post(body) // <--- ИЗМЕНЕНО НА POST
+            .addHeader("Authorization", token)
+            .post(body)
             .build()
 
         return@withContext try {
@@ -259,33 +262,37 @@ class WBDeliveryAndQRCodes(private val context: Context) {
                 val bodyString = response.body?.string() ?: return@withContext emptyList()
                 val jsonObject = JsonParser.parseString(bodyString).asJsonObject
 
-                // В ответе приходит массив стикеров (аналогично обычным стикерам заказов)
                 if (!jsonObject.has("stickers")) return@withContext emptyList()
 
                 val stickersArray = jsonObject.getAsJsonArray("stickers")
                 val resultFiles = mutableListOf<File>()
 
-                for (element in stickersArray) {
+                for ((index, element) in stickersArray.withIndex()) {
                     val stickerObj = element.asJsonObject
-                    val trbxId = if (stickerObj.has("id")) stickerObj.get("id").asString else "unknown"
-                    // В ответе поле с картинкой обычно называется file или barcode
-                    val fileBase64 = if (stickerObj.has("file")) {
-                        stickerObj.get("file").asString
-                    } else if (stickerObj.has("barcode")) {
-                        stickerObj.get("barcode").asString
-                    } else {
-                        ""
-                    }
-
-                    if (fileBase64.isNotEmpty()) {
+                    val fileContent = stickerObj.get("file")
+                        ?.takeUnless { it.isJsonNull }
+                        ?.asString
+                        .orEmpty()
+                    if (fileContent.isNotEmpty()) {
                         try {
-                            val fileBytes = Base64.decode(fileBase64, Base64.DEFAULT)
-                            val tempFile = File(context.cacheDir, "qrcode_trbx_${trbxId}.$type")
+                            // SVG и ZPL в ответе WB — текстовое содержимое файла; PNG приходит Base64.
+                            val fileBytes = if (type == "png") {
+                                Base64.decode(fileContent, Base64.DEFAULT)
+                            } else {
+                                fileContent.toByteArray(Charsets.UTF_8)
+                            }
+                            val barcode = stickerObj.get("barcode")
+                                ?.takeUnless { it.isJsonNull }
+                                ?.asString
+                                .orEmpty()
+                            val safeId = barcode.replace(Regex("[^A-Za-z0-9_-]"), "_")
+                                .take(80).ifBlank { "${supplyId}_$index" }
+                            val tempFile = File(context.cacheDir, "qrcode_trbx_${safeId}.$type")
                             FileOutputStream(tempFile).use { fos -> fos.write(fileBytes) }
                             resultFiles.add(tempFile)
-                            Log.i(TAG, "✅ QR-код грузоместа $trbxId сохранён: ${tempFile.absolutePath}")
+                            Log.i(TAG, "✅ QR-стикер грузоместа сохранён: ${tempFile.absolutePath}")
                         } catch (e: Exception) {
-                            Log.e(TAG, "❌ Ошибка сохранения файла для грузоместа $trbxId", e)
+                            Log.e(TAG, "❌ Ошибка сохранения QR-стикера грузоместа №${index + 1}", e)
                         }
                     }
                 }
@@ -309,7 +316,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 
         val request = Request.Builder()
             .url(url)
-            .addHeader("Authorization", "Bearer $token")
+            .addHeader("Authorization", token)
             .get()
             .build()
 
@@ -318,9 +325,15 @@ class WBDeliveryAndQRCodes(private val context: Context) {
             if (response.isSuccessful) {
                 val bodyString = response.body?.string() ?: return@withContext null
                 val jsonObject = JsonParser.parseString(bodyString).asJsonObject
-                // Предполагается, что API возвращает объект с массивом "trbxIds" или просто массив
-                val trbxArray = jsonObject.getAsJsonArray("trbxIds") ?: return@withContext null
-                trbxArray.map { it.asString }
+                // GET /trbx возвращает {"trbxs":[{"id":"WB-TRBX-..."}]}.
+                val trbxArray = jsonObject.getAsJsonArray("trbxs") ?: return@withContext null
+                trbxArray.mapNotNull { element ->
+                    element.takeIf { it.isJsonObject }
+                        ?.asJsonObject
+                        ?.get("id")
+                        ?.takeUnless { it.isJsonNull }
+                        ?.asString
+                }
             } else {
                 Log.e(TAG, "❌ Ошибка получения списка грузомест. Код: ${response.code}")
                 null
