@@ -91,6 +91,7 @@ fun SettingsScreen(
     var wbOrdersUrl by remember { mutableStateOf(preferencesManager.getWbOrdersUrl()) }
     var wbSuppliesUrl by remember { mutableStateOf(preferencesManager.getWbSuppliesUrl()) }
     var wbAddOrdersUrl by remember { mutableStateOf(preferencesManager.getWbAddOrdersUrl()) }
+    var wbIdOrdersInSupplyUrl by remember { mutableStateOf(preferencesManager.getWbIdOrdersInSupplyUrl()) }
 
     // Application Settings
     var checkInterval by remember { mutableStateOf(preferencesManager.getCheckIntervalMinutes().toString()) }
@@ -236,6 +237,15 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = wbIdOrdersInSupplyUrl,
+                onValueChange = { wbIdOrdersInSupplyUrl = it },
+                label = { Text("URL id всех заказов в поставке") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
 
@@ -263,9 +273,11 @@ fun SettingsScreen(
                     // Сохраняем только нужные настройки
                     preferencesManager.setBotToken(botToken)
                     preferencesManager.setWbApiToken(wbApiToken)
+
                     preferencesManager.setWbOrdersUrl(wbOrdersUrl)
                     preferencesManager.setWbSuppliesUrl(wbSuppliesUrl)
                     preferencesManager.setWbAddOrdersUrl(wbAddOrdersUrl)
+                    preferencesManager.setWbIdOrdersInSupplyUrl(wbIdOrdersInSupplyUrl)
 
                     // Сохраняем ID подгруппы (если введено число)
                     val threadId = messageThreadId.toIntOrNull() ?: 0
@@ -320,13 +332,17 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "🔹 Telegram Bot Token:\n" +
-                                "   1. Напишите @BotFather\n" +
-                                "   2. Создайте бота командой /newbot\n" +
+                                "   1. Найдите в Telegram @BotFather\n" +
+                                "   2. Напишите @BotFather команду для создания бота - /newbot\n" +
                                 "   3. Скопируйте полученный токен\n\n" +
                                 "🔹 Wildberries API Token:\n" +
                                 "   1. Зайдите в кабинет WB\n" +
-                                "   2. Настройки → Доступ к API\n" +
-                                "   3. Создайте новый токен с правами на заказы\n\n" +
+                                "   2. В правом верхнем углу нажмите на название вашей организации " +
+                                "-> Интеграции по API -> Создать токен -> Для интеграции вручную\n" +
+                                "   3. Выберите <Персональный токен> и <Чтение и запись>, " +
+                                "галочку поставте на <Маркетплейс> и " +
+                                "<Я понимаю, что не следует передавать токен третьим лицам>, дайте наименование токену.\n" +
+                                "   4. Нажмите <Создать токен> \n\n" +
                                 "📌 После того как нажмете на кнопку включить в приложении, напишите в чате телеграмма(в который подключили бота) слово СТАРТ для активации",
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -351,6 +367,7 @@ fun SettingsScreen(
                         wbOrdersUrl = "https://marketplace-api.wildberries.ru/api/v3/orders/new"
                         wbSuppliesUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies"
                         wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
+                        wbIdOrdersInSupplyUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
                         checkInterval = "15"
                         showResetDialog = false
                         saveSuccess = false
