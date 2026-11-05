@@ -252,7 +252,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 
         val request = Request.Builder()
             .url(url)
-            .addHeader("Authorization", token)
+            .addHeader("Authorization", "Bearer $token")
             .post(body)
             .build()
 
@@ -316,7 +316,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 
         val request = Request.Builder()
             .url(url)
-            .addHeader("Authorization", token)
+            .addHeader("Authorization", "Bearer $token")
             .get()
             .build()
 
@@ -325,8 +325,13 @@ class WBDeliveryAndQRCodes(private val context: Context) {
             if (response.isSuccessful) {
                 val bodyString = response.body?.string() ?: return@withContext null
                 val jsonObject = JsonParser.parseString(bodyString).asJsonObject
-                // GET /trbx возвращает {"trbxs":[{"id":"WB-TRBX-..."}]}.
-                val trbxArray = jsonObject.getAsJsonArray("trbxs") ?: return@withContext null
+                // GET /trbx возвращает {"trbxes":[{"id":"WB-MP-..."}]} или {"trbxs":[{"id":"WB-TRBX-..."}]}.
+                val trbxArray = jsonObject.getAsJsonArray("trbxes")
+                    ?: jsonObject.getAsJsonArray("trbxs")
+                    ?: run {
+                        Log.e(TAG, "❌ В ответе GET /trbx отсутствует поле trbxes/trbxs: $bodyString")
+                        return@withContext null
+                    }
                 trbxArray.mapNotNull { element ->
                     element.takeIf { it.isJsonObject }
                         ?.asJsonObject
@@ -335,7 +340,8 @@ class WBDeliveryAndQRCodes(private val context: Context) {
                         ?.asString
                 }
             } else {
-                Log.e(TAG, "❌ Ошибка получения списка грузомест. Код: ${response.code}")
+                val errorBody = response.body?.string().orEmpty()
+                Log.e(TAG, "❌ Ошибка получения списка грузомест. Код: ${response.code}, ответ: $errorBody")
                 null
             }
         } catch (e: Exception) {

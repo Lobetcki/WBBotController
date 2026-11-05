@@ -114,12 +114,12 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 return
             }
 
-            CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
-                try {
-                    Log.d(TAG, "startBot: создание OkHttpTelegramClient...")
-                    telegramClient = OkHttpTelegramClient(token)
-                    Log.d(TAG, "✅ startBot: OkHttpTelegramClient создан")
+            Log.d(TAG, "startBot: создание OkHttpTelegramClient...")
+            telegramClient = OkHttpTelegramClient(token)
+            Log.d(TAG, "✅ startBot: OkHttpTelegramClient создан")
 
+            serviceScope.launch {
+                try {
                     Log.d(TAG, "startBot: создание TelegramBotsLongPollingApplication...")
                     botApplication = TelegramBotsLongPollingApplication()
                     Log.d(TAG, "✅ startBot: TelegramBotsLongPollingApplication создан")
@@ -130,8 +130,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                     val botId = token.split(":").firstOrNull() ?: ""
                     if (botId.isNotEmpty()) {
-                        preferencesManager.addChatId(botId)
-                        Log.d(TAG, "✅ ID бота сохранён: $botId")
+                        Log.d(TAG, "✅ ID бота: $botId")
                     }
 
                     Log.d(TAG, "startBot: запуск периодической проверки...")
@@ -325,16 +324,17 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 val threadId = update.message.messageThreadId // <-- Получаем ID подгруппы
                 Log.d(TAG, "consume: сообщение из чата $chatId, $threadId: '$text'")
 
+                if (text.equals("СТАРТ", ignoreCase = true)) {
+                    preferencesManager.setMessageThreadId(chatId, threadId ?: 0)
+                    Log.d(TAG, "ID темы для чата $chatId сохранён: ${threadId ?: 0}")
+                }
+
                 // Проверяем, активирован ли уже этот чат
                 if (!preferencesManager.getAllChatIds().contains(chatId)) {
                     // Чат ещё не активирован – ждём только команду СТАРТ
                     if (text.equals("СТАРТ", ignoreCase = true)) {
                         // Активируем чат
                         addChat(chatId)
-                        if (threadId != null && threadId != 0) {
-                            preferencesManager.setMessageThreadId(threadId)
-                            Log.d(TAG, "✅ ID подгруппы сохранён: $threadId")
-                        }
                         preferencesManager.setWelcomeSent(true) // отметим, что приветствие уже отправим
                         // Отправляем приветственное сообщение
                         sendMessage(chatId, buildString {
@@ -432,11 +432,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
      */
     private fun addChat(chatId: String) {
         if (chatId.isEmpty()) return
-
-        if (preferencesManager.getAllChatIds().contains(chatId)) {
-            Log.d(TAG, "addChat: пропускаем ID бота")
+        val botId = preferencesManager.getBotId()
+        if (botId.isNotEmpty() && chatId == botId) {
+            Log.d(TAG, "addChat: пропускаем ID бота ($chatId)")
             return
-        } else {
+        }
+
+        if (!preferencesManager.getAllChatIds().contains(chatId)) {
             preferencesManager.addChatId(chatId)
             Log.d(TAG, "✅ Чат автоматически добавлен: $chatId")
         }
@@ -464,9 +466,15 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
      */
     private fun sendMessage(chatId: String, text: String) {
         if (text.isBlank() || chatId.isBlank()) return
+        val botId = preferencesManager.getBotId()
+        if (botId.isNotEmpty() && chatId == botId) return
+        if (!::telegramClient.isInitialized) {
+            Log.w(TAG, "⚠️ sendMessage: telegramClient ещё не инициализирован")
+            return
+        }
 
         try {
-            val messageThreadId = preferencesManager.getMessageThreadId() // <-- Получаем ID подгруппы из настроек
+            val messageThreadId = preferencesManager.getMessageThreadId(chatId)
             val message = SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
@@ -483,7 +491,22 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     telegramClient.execute(message)
                     Log.d(TAG, "✅ сообщение отправлено в $chatId (threadId: $messageThreadId)")
                 } catch (e: TelegramApiException) {
-                    if (e.message?.contains("bot can't send messages") == true ||
+                    if (e.message?.contains("message thread not found", ignoreCase = true) == true) {
+                        Log.w(TAG, "⚠️ Тема $messageThreadId не найдена в чате $chatId; повторяю отправку без темы")
+                        preferencesManager.clearMessageThreadId(chatId, messageThreadId)
+                        try {
+                            telegramClient.execute(
+                                SendMessage.builder()
+                                    .chatId(chatId)
+                                    .text(text)
+                                    .parseMode("Markdown")
+                                    .build()
+                            )
+                            Log.d(TAG, "✅ сообщение отправлено в $chatId без темы")
+                        } catch (retryException: TelegramApiException) {
+                            Log.e(TAG, "❌ повторная отправка сообщения без темы в $chatId не удалась", retryException)
+                        }
+                    } else if (e.message?.contains("bot can't send messages") == true ||
                         e.message?.contains("Forbidden") == true) {
                         Log.w(TAG, "⚠️ Бот не может отправлять в $chatId, удаляем")
                         preferencesManager.removeChatId(chatId)
@@ -647,14 +670,18 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
      */
     private fun sendDocumentToAllChats(document: File, caption: String = "") {
         if (!document.exists()) return
+        if (!::telegramClient.isInitialized) {
+            Log.w(TAG, "⚠️ sendDocumentToAllChats: telegramClient ещё не инициализирован")
+            return
+        }
         val chatIds = preferencesManager.getAllChatIds()
         if (chatIds.isEmpty()) {
             Log.d(TAG, "Нет активных чатов для отправки документа")
             return
         }
 
-        val messageThreadId = preferencesManager.getMessageThreadId()
         for (chatId in chatIds) {
+            val messageThreadId = preferencesManager.getMessageThreadId(chatId)
             try {
                 val sendDocument = SendDocument.builder()
                     .chatId(chatId)
@@ -670,7 +697,23 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 telegramClient.execute(sendDocument)
                 Log.d(TAG, "✅ Документ отправлен в чат $chatId: ${document.name}")
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Ошибка отправки документа в чат $chatId: ${e.message}", e)
+                if (e.message?.contains("message thread not found", ignoreCase = true) == true) {
+                    Log.w(TAG, "⚠️ Тема $messageThreadId не найдена в чате $chatId; повторяю отправку документа без темы")
+                    preferencesManager.clearMessageThreadId(chatId, messageThreadId)
+                    try {
+                        val retryDocument = SendDocument.builder()
+                            .chatId(chatId)
+                            .document(InputFile(document))
+                            .caption(caption)
+                            .build()
+                        telegramClient.execute(retryDocument)
+                        Log.d(TAG, "✅ документ отправлен в $chatId без темы: ${document.name}")
+                    } catch (retryException: Exception) {
+                        Log.e(TAG, "❌ повторная отправка документа без темы в $chatId не удалась", retryException)
+                    }
+                } else {
+                    Log.e(TAG, "❌ Ошибка отправки документа в чат $chatId: ${e.message}", e)
+                }
             }
         }
     }

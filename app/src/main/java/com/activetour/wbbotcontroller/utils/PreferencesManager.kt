@@ -16,13 +16,68 @@ class PreferencesManager(context: Context) {
 //    fun setChatId(botId: String) = prefs.edit().putString("bot_id", botId).apply()
 
     fun getMessageThreadId(): Int = prefs.getInt("message_thread_id", 0)
-    fun setMessageThreadId(threadId: Int) = prefs.edit().putInt("message_thread_id", threadId).apply()
+    fun getMessageThreadId(chatId: String): Int {
+        val chatThreadKey = "message_thread_id_$chatId"
+        if (prefs.contains(chatThreadKey)) return prefs.getInt(chatThreadKey, 0)
+
+        val configuredChatId = prefs.getString("message_thread_chat_id", null)
+        if (configuredChatId != null && configuredChatId != chatId) return 0
+
+        // A Telegram topic can only belong to a group/supergroup, never a private chat.
+        if ((chatId.toLongOrNull() ?: 0L) >= 0L) return 0
+        return getMessageThreadId()
+    }
+
+    fun setMessageThreadId(threadId: Int) = prefs.edit()
+        .putInt("message_thread_id", threadId)
+        .remove("message_thread_chat_id")
+        .apply()
+
+    fun setMessageThreadId(chatId: String, threadId: Int) {
+        val editor = prefs.edit().putInt("message_thread_id_$chatId", threadId)
+        if (threadId > 0) {
+            editor.putString("message_thread_chat_id", chatId)
+                .putInt("message_thread_id", threadId)
+        } else if (prefs.getString("message_thread_chat_id", null) == chatId) {
+            editor.putInt("message_thread_id", 0)
+                .remove("message_thread_chat_id")
+        }
+        editor.apply()
+    }
+
+    fun clearMessageThreadId(chatId: String, threadId: Int) {
+        val editor = prefs.edit().putInt("message_thread_id_$chatId", 0)
+        if (prefs.getString("message_thread_chat_id", null) == chatId && getMessageThreadId() == threadId) {
+            editor.putInt("message_thread_id", 0).remove("message_thread_chat_id")
+        } else if (prefs.getString("message_thread_chat_id", null) == null && getMessageThreadId() == threadId) {
+            editor.putInt("message_thread_id", 0)
+        }
+        editor.apply()
+    }
 
 
     // ==================== Multiple Chats ====================
-    fun getAllChatIds(): Set<String> = prefs.getStringSet("all_chat_ids", emptySet()) ?: emptySet()
+    fun getBotId(): String {
+        val token = getBotToken()
+        return if (token.contains(":")) token.split(":").firstOrNull() ?: "" else ""
+    }
+
+    fun getAllChatIds(): Set<String> {
+        val botId = getBotId()
+        val all = prefs.getStringSet("all_chat_ids", emptySet()) ?: emptySet()
+        if (botId.isNotEmpty() && all.contains(botId)) {
+            val cleaned = all.filter { it != botId }.toSet()
+            prefs.edit().putStringSet("all_chat_ids", cleaned).apply()
+            return cleaned
+        }
+        return all
+    }
 
     fun addChatId(chatId: String) {
+        if (chatId.isBlank()) return
+        val botId = getBotId()
+        if (botId.isNotEmpty() && chatId == botId) return
+
         val current = getAllChatIds().toMutableSet()
         if (current.add(chatId)) {
             prefs.edit().putStringSet("all_chat_ids", current).apply()
