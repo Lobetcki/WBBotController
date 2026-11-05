@@ -114,15 +114,15 @@ class PreferencesManager(context: Context) {
 
     fun getWbAddOrdersUrl(): String = prefs.getString(   // URL добавления заказов
         "wb_add_orders_url",
-        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
-    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
+        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
+    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
 
     fun setWbAddOrdersUrl(url: String) = prefs.edit().putString("wb_add_orders_url", url).apply()
 
     fun getWbIdOrdersInSupplyUrl(): String = prefs.getString(   // URL id всех заказов в поставке c определенным id
         "wb_id_orders_in_supply_url",
-        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
-    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
+        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
+    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
 
     fun setWbIdOrdersInSupplyUrl(url: String) = prefs.edit().putString("wb_id_orders_in_supply_url", url).apply()
 
@@ -135,22 +135,22 @@ class PreferencesManager(context: Context) {
 
     fun getWBListBoxIDsUrl(): String = prefs.getString(   // URL Получить список id грузомест поставки
         "wb_list_ids_box_url",
-        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
-    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
 
     fun setWBListBoxIDsUrl(url: String) = prefs.edit().putString("wb_list_ids_box_url", url).apply()
 
     fun getWBQRCodeSuppliesUrl(): String = prefs.getString(   // URL QR-кода грузомест поставки
         "wb_qr_codes_url",
-        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx/stickers"
-    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx/stickers"
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx/stickers"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx/stickers"
 
     fun setWBQRCodeSuppliesUrl(url: String) = prefs.edit().putString("wb_qr_codes_url", url).apply()
 
     fun getWbAddNumberCargoSpacesUrl(): String = prefs.getString(   // URL добавления грузомест
         "wb_add_number_cargo_spaces_url",
-        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
-    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
 
     fun setWbAddNumberCargoSpacesUrl(url: String) = prefs.edit().putString("wb_add_number_cargo_spaces_url", url).apply()
 

@@ -41,7 +41,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
             return@withContext null
         }
 
-        val urlStr = String.format(prefs.getWbIdOrdersInSupplyUrl(), supplyId)
+        val urlStr = prefs.getWbIdOrdersInSupplyUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
         val request = Request.Builder()
             .url(urlStr)
             .addHeader("Authorization", "Bearer $token")
@@ -238,7 +238,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
             Log.e(TAG, "Неподдерживаемый формат QR-стикера грузоместа: $type")
             return@withContext emptyList()
         }
-        val rawUrl = String.format(prefs.getWBQRCodeSuppliesUrl(), supplyId)
+        val rawUrl = prefs.getWBQRCodeSuppliesUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
 
         // Для этого метода WB требует параметр type: svg, zplv, zplh или png.
         val url = rawUrl.toHttpUrlOrNull()
@@ -312,7 +312,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
      */
     private suspend fun getTrbxIdsForSupply(supplyId: String): List<String>? = withContext(Dispatchers.IO) {
         val token = prefs.getWbApiToken()
-        val url = String.format(prefs.getWBListBoxIDsUrl(), supplyId)
+        val url = prefs.getWBListBoxIDsUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
 
         val request = Request.Builder()
             .url(url)
@@ -360,7 +360,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 
         val jsonBody = gson.toJson(mapOf("amount" to numberCargoSpaces))
         val body = jsonBody.toRequestBody(mediaType)
-        val url = String.format(prefs.getWbAddNumberCargoSpacesUrl(), supplyId)
+        val url = prefs.getWbAddNumberCargoSpacesUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
 
         val request = Request.Builder()
             .url(url)
