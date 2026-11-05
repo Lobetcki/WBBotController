@@ -13,7 +13,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
-class WbSupplyChecker(context: Context) {
+class WbSupplyChecker(private val context: Context) {
 
     companion object {
         private const val TAG = "WbSupplyChecker"
