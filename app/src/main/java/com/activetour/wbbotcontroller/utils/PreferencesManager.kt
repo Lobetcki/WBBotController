@@ -57,10 +57,30 @@ class PreferencesManager(context: Context) {
         editor.apply()
     }
 
-    // ==================== Orders & Supply Specific Threads ====================
+    // ==================== Orders & Supply Specific Chats and Threads ====================
+
+    fun getOrdersChatId(): String {
+        val saved = prefs.getString("orders_chat_id", "") ?: ""
+        if (saved.isNotEmpty()) return saved
+        return getAllChatIds().firstOrNull() ?: ""
+    }
+
+    fun setOrdersChatId(chatId: String) {
+        prefs.edit().putString("orders_chat_id", chatId).apply()
+    }
+
+    fun getSupplyChatId(): String {
+        val saved = prefs.getString("supply_chat_id", "") ?: ""
+        if (saved.isNotEmpty()) return saved
+        return getOrdersChatId()
+    }
+
+    fun setSupplyChatId(chatId: String) {
+        prefs.edit().putString("supply_chat_id", chatId).apply()
+    }
 
     fun getOrdersThreadId(): Int {
-        val chatId = getAllChatIds().firstOrNull() ?: ""
+        val chatId = getOrdersChatId()
         if (chatId.isNotEmpty()) {
             val key = "orders_thread_id_$chatId"
             if (prefs.contains(key)) return prefs.getInt(key, 0)
@@ -86,6 +106,7 @@ class PreferencesManager(context: Context) {
     }
 
     fun setOrdersThreadId(chatId: String, threadId: Int) {
+        setOrdersChatId(chatId)
         val editor = prefs.edit()
             .putInt("orders_thread_id_$chatId", threadId)
             .putInt("orders_thread_id", threadId)
@@ -98,7 +119,7 @@ class PreferencesManager(context: Context) {
     }
 
     fun getSupplyThreadId(): Int {
-        val chatId = getAllChatIds().firstOrNull() ?: ""
+        val chatId = getSupplyChatId()
         if (chatId.isNotEmpty()) {
             val key = "supply_thread_id_$chatId"
             if (prefs.contains(key)) return prefs.getInt(key, 0)
@@ -122,6 +143,7 @@ class PreferencesManager(context: Context) {
     }
 
     fun setSupplyThreadId(chatId: String, threadId: Int) {
+        setSupplyChatId(chatId)
         prefs.edit()
             .putInt("supply_thread_id_$chatId", threadId)
             .putInt("supply_thread_id", threadId)

@@ -445,4 +445,49 @@ class WBDeliveryAndQRCodes(private val context: Context) {
             false
         }
     }
+
+    /**
+     * Объединяет все отдельные файлы стикеров в один единый многостраничный PDF-файл
+     */
+    fun createMergedStickersPdf(stickers: List<StickerForOrder>, supplyId: String): File? {
+        val validStickers = stickers.filter { it.file.exists() }
+        if (validStickers.isEmpty()) return null
+
+        val outputFile = File(context.cacheDir, "all_stickers_${supplyId}.pdf")
+        val pdfDocument = android.graphics.pdf.PdfDocument()
+
+        return try {
+            var pageIndex = 1
+            for (sticker in validStickers) {
+                val bitmap = android.graphics.BitmapFactory.decodeFile(sticker.file.absolutePath) ?: continue
+
+                val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, pageIndex).create()
+                val page = pdfDocument.startPage(pageInfo)
+
+                page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                pdfDocument.finishPage(page)
+
+                bitmap.recycle()
+                pageIndex++
+            }
+
+            if (pageIndex == 1) {
+                pdfDocument.close()
+                return null
+            }
+
+            FileOutputStream(outputFile).use { fos ->
+                pdfDocument.writeTo(fos)
+            }
+            Log.i(TAG, "✅ Создан объединённый PDF-файл со стикерами: ${outputFile.absolutePath}")
+            outputFile
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Ошибка объединения стикеров в PDF: ${e.message}", e)
+            null
+        } finally {
+            try {
+                pdfDocument.close()
+            } catch (_: Exception) {}
+        }
+    }
 }

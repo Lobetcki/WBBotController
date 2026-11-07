@@ -56,8 +56,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     private var currentSupplyId: String? = null
 
     // Чаты, ожидающие от пользователя ввода количества коробок (грузомест)
-    private val awaitingCargoSpacesChats =
-        java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val awaitingCargoSpacesChats = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     companion object {
         private const val TAG = "TelegramBotService"
@@ -146,10 +145,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         }
                         Log.d(TAG, "✅ startBot: первая проверка выполнена")
                     } else {
-                        Log.d(
-                            TAG,
-                            "startBot: чат ещё не активирован, первая проверка отложена до получения сообщения"
-                        )
+                        Log.d(TAG, "startBot: чат ещё не активирован, первая проверка отложена до получения сообщения")
                     }
 
                     showAndroidNotification("✅ Бот запущен", "Бот успешно запущен")
@@ -282,9 +278,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             if (supplyNotFound) {
                 supplyType = "НОВУЮ (созданную мной)"
-                val supplyName = "Поставка от ${
-                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
-                }"
+                val supplyName = "Поставка от ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}"
                 currentSupplyId = supplyChecker.createSupply(supplyName)
 
                 if (currentSupplyId == null) {
@@ -333,8 +327,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 // Обработка стартовых команд
                 if (text.equals("ПОСТАВКА", ignoreCase = true)
                     || text.equals("ПОСТАВКИ", ignoreCase = true)
-                    || text.equals("СТАРТ ПОСТАВКА", ignoreCase = true)
-                    || text.equals("СТАРТ ПОСТАВКИ", ignoreCase = true)
                     || text.equals("/start_supply", ignoreCase = true)
                 ) {
 
@@ -518,31 +510,25 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     }
 
     /**
-     * Отправляет сообщение о заказах во все чаты (в тему Заказов)
+     * Отправляет сообщение о заказах в привязанный чат и тему Заказов
      */
     private fun sendOrdersMessageToAllChats(text: String) {
         if (text.isBlank()) return
-        val chatIds = preferencesManager.getAllChatIds()
-        if (chatIds.isEmpty()) return
-
-        for (chatId in chatIds) {
-            val threadId = preferencesManager.getOrdersThreadId(chatId)
-            sendMessage(chatId, text, threadId)
-        }
+        val chatId = preferencesManager.getOrdersChatId()
+        if (chatId.isBlank()) return
+        val threadId = preferencesManager.getOrdersThreadId(chatId)
+        sendMessage(chatId, text, threadId)
     }
 
     /**
-     * Отправляет сообщение о поставке во все чаты (в тему Поставки)
+     * Отправляет сообщение о поставке в привязанный чат и тему Поставок
      */
     private fun sendSupplyMessageToAllChats(text: String) {
         if (text.isBlank()) return
-        val chatIds = preferencesManager.getAllChatIds()
-        if (chatIds.isEmpty()) return
-
-        for (chatId in chatIds) {
-            val threadId = preferencesManager.getSupplyThreadId(chatId)
-            sendMessage(chatId, text, threadId)
-        }
+        val chatId = preferencesManager.getSupplyChatId()
+        if (chatId.isBlank()) return
+        val threadId = preferencesManager.getSupplyThreadId(chatId)
+        sendMessage(chatId, text, threadId)
     }
 
     /**
@@ -739,8 +725,18 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             // 2. Получаем и отправляем стикеры для заказов в поставке (на товары)
             val stickers = delivery.getStickersForOrders(currentSupplyId!!)
             if (stickers.isNotEmpty()) {
-                sendSupplyMessageToAllChats("🏷 Получено стикеров для заказов: ${stickers.size}. Отправляю...")
-                sendSupplyStickersToAllChats(stickers, "Стикер поставки `$currentSupplyId`")
+                sendSupplyMessageToAllChats("🏷 Получено стикеров для заказов: ${stickers.size}. Объединяю в PDF...")
+
+                val mergedPdf = delivery.createMergedStickersPdf(stickers, currentSupplyId!!)
+                if (mergedPdf != null && mergedPdf.exists()) {
+                    sendSupplyDocumentToAllChats(
+                        mergedPdf,
+                        "🏷 Все стикеры заказов поставки `$currentSupplyId` (${stickers.size} шт.)"
+                    )
+                    try { mergedPdf.delete() } catch (_: Exception) {}
+                } else {
+                    sendSupplyStickersToAllChats(stickers, "Стикер поставки `$currentSupplyId`")
+                }
                 stickers.forEach {
                     try {
                         it.file.delete()
@@ -777,7 +773,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     }
 
     /**
-     * Отправление документа/файла во все активные чаты в тему Поставки
+     * Отправление документа/файла в привязанный чат и тему Поставки
      */
     private fun sendSupplyDocumentToAllChats(document: File, caption: String = "") {
         if (!document.exists()) return
@@ -785,13 +781,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             Log.w(TAG, "⚠️ sendSupplyDocumentToAllChats: telegramClient ещё не инициализирован")
             return
         }
-        val chatIds = preferencesManager.getAllChatIds()
-        if (chatIds.isEmpty()) return
-
-        for (chatId in chatIds) {
-            val threadId = preferencesManager.getSupplyThreadId(chatId)
-            sendDocument(chatId, document, caption, threadId)
-        }
+        val chatId = preferencesManager.getSupplyChatId()
+        if (chatId.isBlank()) return
+        val threadId = preferencesManager.getSupplyThreadId(chatId)
+        sendDocument(chatId, document, caption, threadId)
     }
 
     private fun sendDocument(
