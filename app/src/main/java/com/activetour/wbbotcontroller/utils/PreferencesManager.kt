@@ -59,24 +59,54 @@ class PreferencesManager(context: Context) {
 
     // ==================== Orders & Supply Specific Chats and Threads ====================
 
-    fun getOrdersChatId(): String {
-        val saved = prefs.getString("orders_chat_id", "") ?: ""
-        if (saved.isNotEmpty()) return saved
-        return getAllChatIds().firstOrNull() ?: ""
+    fun getOrdersChatIds(): Set<String> {
+        val botId = getBotId()
+        val set = prefs.getStringSet("orders_chat_ids", emptySet()) ?: emptySet()
+        val cleaned = set.filter { it.isNotBlank() && it != botId }.toSet()
+        if (cleaned.isNotEmpty()) return cleaned
+        return getAllChatIds()
     }
+
+    fun addOrdersChatId(chatId: String) {
+        if (chatId.isBlank()) return
+        val botId = getBotId()
+        if (botId.isNotEmpty() && chatId == botId) return
+        val current = (prefs.getStringSet("orders_chat_ids", emptySet()) ?: emptySet()).toMutableSet()
+        if (current.add(chatId)) {
+            prefs.edit().putStringSet("orders_chat_ids", current).apply()
+        }
+        addChatId(chatId)
+    }
+
+    fun getSupplyChatIds(): Set<String> {
+        val botId = getBotId()
+        val set = prefs.getStringSet("supply_chat_ids", emptySet()) ?: emptySet()
+        val cleaned = set.filter { it.isNotBlank() && it != botId }.toSet()
+        if (cleaned.isNotEmpty()) return cleaned
+        return getOrdersChatIds()
+    }
+
+    fun addSupplyChatId(chatId: String) {
+        if (chatId.isBlank()) return
+        val botId = getBotId()
+        if (botId.isNotEmpty() && chatId == botId) return
+        val current = (prefs.getStringSet("supply_chat_ids", emptySet()) ?: emptySet()).toMutableSet()
+        if (current.add(chatId)) {
+            prefs.edit().putStringSet("supply_chat_ids", current).apply()
+        }
+        addChatId(chatId)
+    }
+
+    fun getOrdersChatId(): String = getOrdersChatIds().firstOrNull() ?: ""
 
     fun setOrdersChatId(chatId: String) {
-        prefs.edit().putString("orders_chat_id", chatId).apply()
+        addOrdersChatId(chatId)
     }
 
-    fun getSupplyChatId(): String {
-        val saved = prefs.getString("supply_chat_id", "") ?: ""
-        if (saved.isNotEmpty()) return saved
-        return getOrdersChatId()
-    }
+    fun getSupplyChatId(): String = getSupplyChatIds().firstOrNull() ?: ""
 
     fun setSupplyChatId(chatId: String) {
-        prefs.edit().putString("supply_chat_id", chatId).apply()
+        addSupplyChatId(chatId)
     }
 
     fun getOrdersThreadId(): Int {
@@ -106,7 +136,7 @@ class PreferencesManager(context: Context) {
     }
 
     fun setOrdersThreadId(chatId: String, threadId: Int) {
-        setOrdersChatId(chatId)
+        addOrdersChatId(chatId)
         val editor = prefs.edit()
             .putInt("orders_thread_id_$chatId", threadId)
             .putInt("orders_thread_id", threadId)
@@ -143,7 +173,7 @@ class PreferencesManager(context: Context) {
     }
 
     fun setSupplyThreadId(chatId: String, threadId: Int) {
-        setSupplyChatId(chatId)
+        addSupplyChatId(chatId)
         prefs.edit()
             .putInt("supply_thread_id_$chatId", threadId)
             .putInt("supply_thread_id", threadId)

@@ -510,25 +510,31 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     }
 
     /**
-     * Отправляет сообщение о заказах в привязанный чат и тему Заказов
+     * Отправляет сообщение о заказах во все привязанные чаты и темы Заказов
      */
     private fun sendOrdersMessageToAllChats(text: String) {
         if (text.isBlank()) return
-        val chatId = preferencesManager.getOrdersChatId()
-        if (chatId.isBlank()) return
-        val threadId = preferencesManager.getOrdersThreadId(chatId)
-        sendMessage(chatId, text, threadId)
+        val chatIds = preferencesManager.getOrdersChatIds()
+        if (chatIds.isEmpty()) return
+
+        for (chatId in chatIds) {
+            val threadId = preferencesManager.getOrdersThreadId(chatId)
+            sendMessage(chatId, text, threadId)
+        }
     }
 
     /**
-     * Отправляет сообщение о поставке в привязанный чат и тему Поставок
+     * Отправляет сообщение о поставке во все привязанные чаты и темы Поставок
      */
     private fun sendSupplyMessageToAllChats(text: String) {
         if (text.isBlank()) return
-        val chatId = preferencesManager.getSupplyChatId()
-        if (chatId.isBlank()) return
-        val threadId = preferencesManager.getSupplyThreadId(chatId)
-        sendMessage(chatId, text, threadId)
+        val chatIds = preferencesManager.getSupplyChatIds()
+        if (chatIds.isEmpty()) return
+
+        for (chatId in chatIds) {
+            val threadId = preferencesManager.getSupplyThreadId(chatId)
+            sendMessage(chatId, text, threadId)
+        }
     }
 
     /**
@@ -773,7 +779,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     }
 
     /**
-     * Отправление документа/файла в привязанный чат и тему Поставки
+     * Отправление документа/файла во все привязанные чаты и темы Поставки
      */
     private fun sendSupplyDocumentToAllChats(document: File, caption: String = "") {
         if (!document.exists()) return
@@ -781,10 +787,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             Log.w(TAG, "⚠️ sendSupplyDocumentToAllChats: telegramClient ещё не инициализирован")
             return
         }
-        val chatId = preferencesManager.getSupplyChatId()
-        if (chatId.isBlank()) return
-        val threadId = preferencesManager.getSupplyThreadId(chatId)
-        sendDocument(chatId, document, caption, threadId)
+        val chatIds = preferencesManager.getSupplyChatIds()
+        if (chatIds.isEmpty()) return
+
+        for (chatId in chatIds) {
+            val threadId = preferencesManager.getSupplyThreadId(chatId)
+            sendDocument(chatId, document, caption, threadId)
+        }
     }
 
     private fun sendDocument(
