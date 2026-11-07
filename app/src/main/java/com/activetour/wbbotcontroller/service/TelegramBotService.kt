@@ -17,6 +17,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.activetour.wbbotcontroller.MainActivity
+import com.activetour.wbbotcontroller.model.StickerForOrder
 import com.activetour.wbbotcontroller.model.WBOrder
 import com.activetour.wbbotcontroller.utils.PreferencesManager
 import com.activetour.wbbotcontroller.worker.CheckOrdersWorker
@@ -31,9 +32,12 @@ import kotlinx.coroutines.withContext
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.objects.InputFile
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException
+import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
@@ -50,6 +54,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
     // ID текущей активной поставки
     private var currentSupplyId: String? = null
+
+    // Чаты, ожидающие от пользователя ввода количества коробок (грузомест)
+    private val awaitingCargoSpacesChats =
+        java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     companion object {
         private const val TAG = "TelegramBotService"
@@ -107,12 +115,12 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 return
             }
 
-            CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
-                try {
-                    Log.d(TAG, "startBot: создание OkHttpTelegramClient...")
-                    telegramClient = OkHttpTelegramClient(token)
-                    Log.d(TAG, "✅ startBot: OkHttpTelegramClient создан")
+            Log.d(TAG, "startBot: создание OkHttpTelegramClient...")
+            telegramClient = OkHttpTelegramClient(token)
+            Log.d(TAG, "✅ startBot: OkHttpTelegramClient создан")
 
+            serviceScope.launch {
+                try {
                     Log.d(TAG, "startBot: создание TelegramBotsLongPollingApplication...")
                     botApplication = TelegramBotsLongPollingApplication()
                     Log.d(TAG, "✅ startBot: TelegramBotsLongPollingApplication создан")
@@ -123,8 +131,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                     val botId = token.split(":").firstOrNull() ?: ""
                     if (botId.isNotEmpty()) {
-                        preferencesManager.addChatId(botId)
-                        Log.d(TAG, "✅ ID бота сохранён: $botId")
+                        Log.d(TAG, "✅ ID бота: $botId")
                     }
 
                     Log.d(TAG, "startBot: запуск периодической проверки...")
@@ -139,7 +146,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         }
                         Log.d(TAG, "✅ startBot: первая проверка выполнена")
                     } else {
-                        Log.d(TAG, "startBot: чат ещё не активирован, первая проверка отложена до получения сообщения")
+                        Log.d(
+                            TAG,
+                            "startBot: чат ещё не активирован, первая проверка отложена до получения сообщения"
+                        )
                     }
 
                     showAndroidNotification("✅ Бот запущен", "Бот успешно запущен")
@@ -212,7 +222,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             val newOrders = orderChecker.getNewOrders()
 
             if (newOrders.isEmpty()) {
-                if (!autoCheck) sendMessageToAllChats(" Новых заказов нет.")
+                if (!autoCheck) sendOrdersMessageToAllChats(" Новых заказов нет.")
                 Log.d(TAG, "checkAndNotifyAboutOrders: новых заказов нет")
                 return
             }
@@ -232,7 +242,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     appendLine("  Дата: ${order.createdAt?.replace("T", " ")?.replace("Z", "")}")
                 }
             }
-//            sendMessageToAllChats(ordersMessage)
+
             actualNewOrders.forEach { order ->
                 if (order.id > lastCheckedOrderId) {
                     lastCheckedOrderId = order.id
@@ -246,7 +256,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ checkAndNotifyAboutOrders: ОШИБКА!", e)
-            sendMessageToAllChats("⚠️ *Ошибка при проверке заказов*\n${e.message}")
+            sendOrdersMessageToAllChats("⚠️ *Ошибка при проверке заказов*\n${e.message}")
         }
 
         Log.d(TAG, "========== checkAndNotifyAboutOrders: КОНЕЦ ==========")
@@ -272,11 +282,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             if (supplyNotFound) {
                 supplyType = "НОВУЮ (созданную мной)"
-                val supplyName = "Поставка от ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}"
+                val supplyName = "Поставка от ${
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+                }"
                 currentSupplyId = supplyChecker.createSupply(supplyName)
 
                 if (currentSupplyId == null) {
-                    sendMessageToAllChats("❌ *КРИТИЧЕСКАЯ ОШИБКА*\nНе удалось создать поставку!")
+                    sendOrdersMessageToAllChats("❌ *КРИТИЧЕСКАЯ ОШИБКА*\nНе удалось создать поставку!")
                     return
                 }
             }
@@ -292,15 +304,15 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     appendLine(ordersMessage)
                     appendLine("В поставке заказов: $countOrders")
                 }
-                // ✅ Отправляем ВО ВСЕ чаты
-                sendMessageToAllChats(message)
+                // ✅ Отправляем в тему Заказов
+                sendOrdersMessageToAllChats(message)
             } else {
-                sendMessageToAllChats("❌ *Ошибка при добавлении заказов в поставку*")
+                sendOrdersMessageToAllChats("❌ *Ошибка при добавлении заказов в поставку*")
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ processSupplyAndAddOrders: ОШИБКА!", e)
-            sendMessageToAllChats("❌ *Ошибка при обработке поставки*\n${e.message}")
+            sendOrdersMessageToAllChats("❌ *Ошибка при обработке поставки*\n${e.message}")
         }
     }
 
@@ -316,66 +328,166 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 val chatId = update.message.chatId.toString()
                 val text = update.message.text
                 val threadId = update.message.messageThreadId // <-- Получаем ID подгруппы
-                Log.d(TAG, "consume: сообщение из чата $chatId, $threadId: '$text'")
+                Log.d(TAG, "consume: сообщение из чата $chatId, threadId=$threadId: '$text'")
+
+                // Обработка стартовых команд
+                if (text.equals("ПОСТАВКА", ignoreCase = true)
+                    || text.equals("ПОСТАВКИ", ignoreCase = true)
+                    || text.equals("СТАРТ ПОСТАВКА", ignoreCase = true)
+                    || text.equals("СТАРТ ПОСТАВКИ", ignoreCase = true)
+                    || text.equals("/start_supply", ignoreCase = true)
+                ) {
+
+                    val currentThread = threadId ?: 0
+                    preferencesManager.setSupplyThreadId(chatId, currentThread)
+                    addChat(chatId)
+
+                    sendMessage(chatId, buildString {
+                        appendLine("✅ *Подчат для ПОСТАВОК перепривязан!*")
+                        appendLine("📌 Теперь листы подбора, стикеры и QR-коды по команде `Жиган поставка` будут выводиться в этот подчат.")
+                        appendLine("📌 Сообщения о заказах продолжат приходить в основной подчат/чат.")
+                    }, currentThread)
+                    return
+                }
+
+                if (text.equals("СТАРТ", ignoreCase = true)
+                    || text.equals("СТАРТ ЗАКАЗЫ", ignoreCase = true)
+                    || text.equals("/start", ignoreCase = true)
+                ) {
+
+                    val currentThread = threadId ?: 0
+                    preferencesManager.setOrdersThreadId(chatId, currentThread)
+                    preferencesManager.setSupplyThreadId(chatId, currentThread)
+                    addChat(chatId)
+                    preferencesManager.setWelcomeSent(true)
+
+                    sendMessage(chatId, buildString {
+                        appendLine("✅ *Бот активирован!*")
+                        appendLine("📌 В этот подчат/чат будет приходить вся информация приложения (заказы, стикеры, QR-коды и листы подбора).")
+                        appendLine()
+                        appendLine("💡 *Для разделения:* если вы хотите получать стикеры и QR-коды в ДРУГОМ подчате, просто напишите команду `ПОСТАВКА` в том подчате.")
+                    }, currentThread)
+
+                    serviceScope.launch {
+                        checkAndNotifyAboutOrders(false)
+                    }
+                    return
+                }
 
                 // Проверяем, активирован ли уже этот чат
                 if (!preferencesManager.getAllChatIds().contains(chatId)) {
-                    // Чат ещё не активирован – ждём только команду СТАРТ
-                    if (text.equals("СТАРТ", ignoreCase = true)) {
-                        // Активируем чат
-                        addChat(chatId)
-                        if (threadId != null && threadId != 0) {
-                            preferencesManager.setMessageThreadId(threadId)
-                            Log.d(TAG, "✅ ID подгруппы сохранён: $threadId")
+                    // Чат ещё не активирован – предлагаем запуск
+                    sendMessage(
+                        chatId,
+                        "⚠️ Чат ещё не активирован. Напишите `СТАРТ` для запуска бота.",
+                        threadId ?: 0
+                    )
+                    return
+                }
+
+                // --- Чат уже активирован – обрабатываем команды ---
+                if (awaitingCargoSpacesChats.contains(chatId)) {
+                    val trimmed = text.trim()
+                    val targetThread = threadId ?: preferencesManager.getSupplyThreadId(chatId)
+                    if (trimmed.equals("Отмена", ignoreCase = true) || trimmed.equals(
+                            "/cancel",
+                            ignoreCase = true
+                        )
+                    ) {
+                        awaitingCargoSpacesChats.remove(chatId)
+                        sendMessage(chatId, "❌ *Действие отменено.*", targetThread)
+                        return
+                    }
+
+                    val count = trimmed.toIntOrNull()
+                    if (count != null && count > 0) {
+                        awaitingCargoSpacesChats.remove(chatId)
+                        preferencesManager.setNumberCargoSpaces(count)
+                        sendMessage(
+                            chatId,
+                            "✅ Установлено коробок: *$count*. Выполняю запрос поставки...",
+                            targetThread
+                        )
+                        serviceScope.launch {
+                            sendToDeliveryAndGetQRCodes()
                         }
-                        preferencesManager.setWelcomeSent(true) // отметим, что приветствие уже отправим
-                        // Отправляем приветственное сообщение
-                        sendMessage(chatId, buildString {
-                            appendLine("✅ *Бот активирован!*")
-//                            appendLine("🤖 Теперь я буду отслеживать заказы Wildberries")
-//                            appendLine("и отправлять уведомления в этот чат.")
-//                            appendLine()
-//                            appendLine("📌 *Команды:*")
-                            appendLine("• `Жиган проверь` - проверить заказы сейчас")
-//                            appendLine("• `/status` - статус бота")
-//                            appendLine("• `/help` - справка")
-                        })
-                        // После активации можно сразу проверить заказы (опционально)
+                        return
+                    } else {
+                        sendMessage(
+                            chatId,
+                            "⚠️ *Пожалуйста, укажите количество коробок числом (например: 1, 2, 3)* или отправьте *Отмена*.",
+                            targetThread
+                        )
+                        return
+                    }
+                }
+
+                // Обработка команд
+                when {
+                    text.contains("Жиган проверь", ignoreCase = true) || text.equals(
+                        "/check",
+                        ignoreCase = true
+                    ) -> {
+                        sendOrdersMessageToAllChats("🔍 Выполняю проверку...")
                         serviceScope.launch {
                             checkAndNotifyAboutOrders(false)
                         }
                     }
 
-                    return // Дальше не обрабатываем другие команды
-                }
+                    text.contains("Жиган поставка", ignoreCase = true)
+                            || text.contains("Жиган qr", ignoreCase = true)
+                            || text.contains("Жиган стикеры", ignoreCase = true)
+                            || text.equals("/qr", ignoreCase = true) -> {
 
-                // --- Чат уже активирован – обрабатываем команды обычным образом ---
-                // Обработка команд
-                when {
-                    text.contains("Жиган проверь", ignoreCase = true) || text.equals("/check", ignoreCase = true) -> {
-                        sendMessageToAllChats("🔍 Выполняю проверку...")
+                        val targetThread = preferencesManager.getSupplyThreadId(chatId)
                         serviceScope.launch {
-//                            checkAndNotifyAboutOrdersForChat(chatId)
-                            checkAndNotifyAboutOrders(false)   // ← рассылает во все чаты
+                            val supplyChecker = WbSupplyChecker(applicationContext)
+                            val activeSupply = supplyChecker.getLastActiveSupply()
+
+                            if (activeSupply == null) {
+                                sendMessage(chatId, "❌ *Активной поставки для обработки не найдено!*", targetThread)
+                            } else {
+                                currentSupplyId = activeSupply
+                                awaitingCargoSpacesChats.add(chatId)
+                                sendMessage(chatId, buildString {
+                                    appendLine("📦 *Формирование поставки:* `$activeSupply`")
+                                    appendLine("Укажите количество коробок (грузомест) числом (например: 1, 2, 3...)")
+                                    appendLine("Или отправьте *Отмена* для отмены действия.")
+                                }, targetThread)
+                            }
                         }
                     }
 
                     text.equals("/status", ignoreCase = true) -> {
+                        val targetThread = threadId ?: 0
+                        val oTopic = preferencesManager.getOrdersThreadId(chatId)
+                        val sTopic = preferencesManager.getSupplyThreadId(chatId)
                         sendMessage(chatId, buildString {
-                            appendLine("✅ *Статус бота:*")
-                            appendLine("• Состояние: Активен")
-                            appendLine("• 🕐 ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss dd.MM.yyyy"))}")
-                            appendLine("• 📊 Интервал проверки: ${preferencesManager.getCheckIntervalMinutes()} минут")
-                        })
+                            appendLine("✅ *Статус работы бота:*")
+                            appendLine("• Состояние: Работает 🟢")
+                            appendLine(
+                                "• Время: ${
+                                    LocalDateTime.now()
+                                        .format(DateTimeFormatter.ofPattern("HH:mm:ss dd.MM.yyyy"))
+                                }"
+                            )
+                            appendLine("• Интервал проверки: ${preferencesManager.getCheckIntervalMinutes()} минут")
+                            if (oTopic > 0) appendLine("• ID темы для Заказов: `$oTopic`")
+                            if (sTopic > 0) appendLine("• ID темы для Поставок: `$sTopic`")
+                        }, targetThread)
                     }
 
                     text.equals("/help", ignoreCase = true) -> {
+                        val targetThread = threadId ?: 0
                         sendMessage(chatId, buildString {
-                            appendLine("🤖 *Доступные команды:*")
-                            appendLine("• `Жиган проверь` - проверить заказы")
-                            appendLine("• `/status` - статус бота")
-                            appendLine("• `/help` - эта справка")
-                        })
+                            appendLine("🤖 *Справка по командам бота:*")
+                            appendLine("• `СТАРТ` — активировать бота (вся информация по умолчанию будет выводиться сюда)")
+                            appendLine("• `ПОСТАВКА` — перенаправить вывод листов подбора, стикеров и QR-кодов в этот подчат")
+                            appendLine("• `Жиган проверь` — запустить мгновенную проверку заказов")
+                            appendLine("• `Жиган поставка` — сформировать поставку, получить лист подбора, стикеры и QR-коды")
+                            appendLine("• `/status` — проверить текущий статус работы бота")
+                            appendLine("• `/help` — показать эту справку")
+                        }, targetThread)
                     }
 
                     else -> {
@@ -393,41 +505,60 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
      */
     private fun addChat(chatId: String) {
         if (chatId.isEmpty()) return
-
-        if (preferencesManager.getAllChatIds().contains(chatId)) {
-            Log.d(TAG, "addChat: пропускаем ID бота")
+        val botId = preferencesManager.getBotId()
+        if (botId.isNotEmpty() && chatId == botId) {
+            Log.d(TAG, "addChat: пропускаем ID бота ($chatId)")
             return
-        } else {
+        }
+
+        if (!preferencesManager.getAllChatIds().contains(chatId)) {
             preferencesManager.addChatId(chatId)
             Log.d(TAG, "✅ Чат автоматически добавлен: $chatId")
         }
     }
 
     /**
-     * Отправляет сообщение во все чаты
+     * Отправляет сообщение о заказах во все чаты (в тему Заказов)
      */
-    private fun sendMessageToAllChats(text: String) {
+    private fun sendOrdersMessageToAllChats(text: String) {
         if (text.isBlank()) return
-
         val chatIds = preferencesManager.getAllChatIds()
-        if (chatIds.isEmpty()) {
-            Log.d(TAG, "sendMessageToAllChats: нет активных чатов")
-            return
-        }
+        if (chatIds.isEmpty()) return
 
         for (chatId in chatIds) {
-            sendMessage(chatId, text)
+            val threadId = preferencesManager.getOrdersThreadId(chatId)
+            sendMessage(chatId, text, threadId)
         }
     }
 
     /**
-     * Отправляет сообщение в конкретный чат
+     * Отправляет сообщение о поставке во все чаты (в тему Поставки)
      */
-    private fun sendMessage(chatId: String, text: String) {
+    private fun sendSupplyMessageToAllChats(text: String) {
+        if (text.isBlank()) return
+        val chatIds = preferencesManager.getAllChatIds()
+        if (chatIds.isEmpty()) return
+
+        for (chatId in chatIds) {
+            val threadId = preferencesManager.getSupplyThreadId(chatId)
+            sendMessage(chatId, text, threadId)
+        }
+    }
+
+    /**
+     * Отправляет сообщение в конкретный чат и подчат (threadId)
+     */
+    private fun sendMessage(chatId: String, text: String, overrideThreadId: Int? = null) {
         if (text.isBlank() || chatId.isBlank()) return
+        val botId = preferencesManager.getBotId()
+        if (botId.isNotEmpty() && chatId == botId) return
+        if (!::telegramClient.isInitialized) {
+            Log.w(TAG, "⚠️ sendMessage: telegramClient ещё не инициализирован")
+            return
+        }
 
         try {
-            val messageThreadId = preferencesManager.getMessageThreadId() // <-- Получаем ID подгруппы из настроек
+            val messageThreadId = overrideThreadId ?: preferencesManager.getMessageThreadId(chatId)
             val message = SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
@@ -444,8 +575,35 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     telegramClient.execute(message)
                     Log.d(TAG, "✅ сообщение отправлено в $chatId (threadId: $messageThreadId)")
                 } catch (e: TelegramApiException) {
-                    if (e.message?.contains("bot can't send messages") == true ||
-                        e.message?.contains("Forbidden") == true) {
+                    if (e.message?.contains(
+                            "message thread not found",
+                            ignoreCase = true
+                        ) == true
+                    ) {
+                        Log.w(
+                            TAG,
+                            "⚠️ Тема $messageThreadId не найдена в чате $chatId; повторяю отправку без темы"
+                        )
+                        preferencesManager.clearMessageThreadId(chatId, messageThreadId)
+                        try {
+                            telegramClient.execute(
+                                SendMessage.builder()
+                                    .chatId(chatId)
+                                    .text(text)
+                                    .parseMode("Markdown")
+                                    .build()
+                            )
+                            Log.d(TAG, "✅ сообщение отправлено в $chatId без темы")
+                        } catch (retryException: TelegramApiException) {
+                            Log.e(
+                                TAG,
+                                "❌ повторная отправка сообщения без темы в $chatId не удалась",
+                                retryException
+                            )
+                        }
+                    } else if (e.message?.contains("bot can't send messages") == true ||
+                        e.message?.contains("Forbidden") == true
+                    ) {
                         Log.w(TAG, "⚠️ Бот не может отправлять в $chatId, удаляем")
                         preferencesManager.removeChatId(chatId)
                     } else {
@@ -460,7 +618,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
     private fun showAndroidNotification(title: String, content: String) {
         try {
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
@@ -536,12 +695,190 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         }
     }
 
+    /**
+     * Обработка запроса на получение стикеров и QR-кодов поставки и передача в доставку
+     */
+    private suspend fun sendToDeliveryAndGetQRCodes() {
+        Log.d(TAG, "========== sendToDeliveryAndGetQRCodes: НАЧАЛО ==========")
+        try {
+            sendSupplyMessageToAllChats("🔄 Запрос стикеров и QR-кодов поставки от Wildberries...")
+
+            val supplyChecker = WbSupplyChecker(applicationContext)
+            currentSupplyId = supplyChecker.getLastActiveSupply()
+
+            if (currentSupplyId == null) {
+                sendSupplyMessageToAllChats("❌ Активной поставки для обработки не найдено!")
+                return
+            }
+
+            val delivery = WBDeliveryAndQRCodes(applicationContext)
+            sendSupplyMessageToAllChats("📦 Найдена активная поставка: `$currentSupplyId`")
+
+            // 1. Добавляем грузоместа
+            delivery.addCargoLocations(currentSupplyId!!)
+
+            // 4. Получаем и отправляем QR-код самой поставки (на коробку/паллету)
+            val qrCodeFiles = delivery.getQRCodesSupplies(currentSupplyId!!)
+            if (qrCodeFiles.isNotEmpty()) {
+                qrCodeFiles.forEachIndexed { index, qrCodeFile ->
+                    if (qrCodeFile.exists()) {
+                        sendSupplyDocumentToAllChats(
+                            qrCodeFile,
+                            "📷 QR-стикер коробки ${index + 1} поставки `$currentSupplyId`"
+                        )
+                    }
+                    try {
+                        qrCodeFile.delete()
+                    } catch (_: Exception) {
+                    }
+                }
+            } else {
+                sendSupplyMessageToAllChats("⚠️ Не удалось получить QR-код поставки `$currentSupplyId`")
+            }
+
+            // 2. Получаем и отправляем стикеры для заказов в поставке (на товары)
+            val stickers = delivery.getStickersForOrders(currentSupplyId!!)
+            if (stickers.isNotEmpty()) {
+                sendSupplyMessageToAllChats("🏷 Получено стикеров для заказов: ${stickers.size}. Отправляю...")
+                sendSupplyStickersToAllChats(stickers, "Стикер поставки `$currentSupplyId`")
+                stickers.forEach {
+                    try {
+                        it.file.delete()
+                    } catch (_: Exception) {
+                    }
+                }
+            } else {
+                sendSupplyMessageToAllChats("⚠️ Не найдено стикеров для заказов в поставке `$currentSupplyId`")
+            }
+
+            // 3. Генерируем и отправляем Лист подбора (CSV)
+            val excelFile = delivery.generateSelectionSheet(currentSupplyId!!, stickers)
+            if (excelFile != null && excelFile.exists()) {
+                sendSupplyDocumentToAllChats(
+                    excelFile,
+                    "📋 Лист подбора для поставки `$currentSupplyId`"
+                )
+                try {
+                    excelFile.delete()
+                } catch (_: Exception) {
+                }
+            }
+
+//            // 5. Передаем поставку в доставку в WB
+//            val deliverySuccess = delivery.sendToDelivery(currentSupplyId!!)
+//            if (deliverySuccess) {
+//                sendSupplyMessageToAllChats("✅ Поставка `$currentSupplyId` переведена в статус 'В доставке'")
+//            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ sendToDeliveryAndGetQRCodes: ОШИБКА!", e)
+            sendSupplyMessageToAllChats("❌ *Ошибка при обработке поставки*\n${e.message}")
+        }
+    }
+
+    /**
+     * Отправление документа/файла во все активные чаты в тему Поставки
+     */
+    private fun sendSupplyDocumentToAllChats(document: File, caption: String = "") {
+        if (!document.exists()) return
+        if (!::telegramClient.isInitialized) {
+            Log.w(TAG, "⚠️ sendSupplyDocumentToAllChats: telegramClient ещё не инициализирован")
+            return
+        }
+        val chatIds = preferencesManager.getAllChatIds()
+        if (chatIds.isEmpty()) return
+
+        for (chatId in chatIds) {
+            val threadId = preferencesManager.getSupplyThreadId(chatId)
+            sendDocument(chatId, document, caption, threadId)
+        }
+    }
+
+    private fun sendDocument(
+        chatId: String,
+        document: File,
+        caption: String = "",
+        overrideThreadId: Int? = null
+    ) {
+        if (!document.exists()) return
+        if (!::telegramClient.isInitialized) return
+        val botId = preferencesManager.getBotId()
+        if (botId.isNotEmpty() && chatId == botId) return
+
+        val messageThreadId = overrideThreadId ?: preferencesManager.getSupplyThreadId(chatId)
+        try {
+            val sendDocument = SendDocument.builder()
+                .chatId(chatId)
+                .document(InputFile(document))
+                .caption(caption)
+                .apply {
+                    if (messageThreadId > 0) {
+                        this.messageThreadId(messageThreadId)
+                    }
+                }
+                .build()
+
+            telegramClient.execute(sendDocument)
+            Log.d(
+                TAG,
+                "✅ Документ отправлен в чат $chatId (threadId: $messageThreadId): ${document.name}"
+            )
+        } catch (e: Exception) {
+            if (e.message?.contains("message thread not found", ignoreCase = true) == true) {
+                Log.w(
+                    TAG,
+                    "⚠️ Тема $messageThreadId не найдена в чате $chatId; повторяю отправку документа без темы"
+                )
+                preferencesManager.clearMessageThreadId(chatId, messageThreadId)
+                try {
+                    val retryDocument = SendDocument.builder()
+                        .chatId(chatId)
+                        .document(InputFile(document))
+                        .caption(caption)
+                        .build()
+                    telegramClient.execute(retryDocument)
+                    Log.d(TAG, "✅ документ отправлен в $chatId без темы: ${document.name}")
+                } catch (retryException: Exception) {
+                    Log.e(
+                        TAG,
+                        "❌ повторная отправка документа без темы в $chatId не удалась",
+                        retryException
+                    )
+                }
+            } else {
+                Log.e(TAG, "❌ Ошибка отправки документа в чат $chatId: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * Отправление списка стикеров заказов во все активные чаты в тему Поставки
+     */
+    private fun sendSupplyStickersToAllChats(
+        stickers: List<StickerForOrder>,
+        caption: String = ""
+    ) {
+        if (stickers.isEmpty()) return
+        for (sticker in stickers) {
+            if (sticker.file.exists()) {
+                val label = "Стикер заказа №${sticker.orderId} (${sticker.partA} ${sticker.partB})"
+                sendSupplyDocumentToAllChats(sticker.file, "$caption\n$label")
+            }
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Обработка ручной проверки
+        // Обработка команд
         when (intent?.getStringExtra("command")) {
             "checkNow" -> {
                 serviceScope.launch {
                     checkAndNotifyAboutOrders(false)
+                }
+            }
+
+            "sendToDeliveryAndGetQRCodes" -> {
+                serviceScope.launch {
+                    sendToDeliveryAndGetQRCodes()
                 }
             }
 
@@ -553,11 +890,11 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
             "notifyBotStopped" -> {
                 serviceScope.launch {
-                    sendMessageToAllChats("⚠️ Бот остановлен")
+                    sendOrdersMessageToAllChats("⚠️ Бот остановлен")
+                    sendSupplyMessageToAllChats("⚠️ Бот остановлен")
                 }
             }
         }
-        // Остальной код (startForeground и т.д.) – уже есть
         return START_STICKY
     }
 }

@@ -140,7 +140,7 @@ class WbSupplyChecker(private val context: Context) {
         }
 
         val token = prefs.getWbApiToken()
-        val url = String.format(prefs.getWbAddOrdersUrl(), supplyId)
+        val url = prefs.getWbAddOrdersUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
 
         if (token.isBlank()) {
             Log.e(TAG, "❌ WB API токен не настроен!")
@@ -174,7 +174,7 @@ class WbSupplyChecker(private val context: Context) {
 
     suspend fun getCountOrdersInSupply(supplyId: String): Int = withContext(Dispatchers.IO) {
 
-        val url = String.format(prefs.getWbIdOrdersInSupplyUrl(), supplyId)
+        val url = prefs.getWbIdOrdersInSupplyUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
 
         val token = prefs.getWbApiToken()
         if (token.isBlank()) {
