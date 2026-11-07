@@ -47,12 +47,85 @@ class PreferencesManager(context: Context) {
 
     fun clearMessageThreadId(chatId: String, threadId: Int) {
         val editor = prefs.edit().putInt("message_thread_id_$chatId", 0)
+            .putInt("orders_thread_id_$chatId", 0)
+            .putInt("supply_thread_id_$chatId", 0)
         if (prefs.getString("message_thread_chat_id", null) == chatId && getMessageThreadId() == threadId) {
             editor.putInt("message_thread_id", 0).remove("message_thread_chat_id")
         } else if (prefs.getString("message_thread_chat_id", null) == null && getMessageThreadId() == threadId) {
             editor.putInt("message_thread_id", 0)
         }
         editor.apply()
+    }
+
+    // ==================== Orders & Supply Specific Threads ====================
+
+    fun getOrdersThreadId(): Int {
+        val chatId = getAllChatIds().firstOrNull() ?: ""
+        if (chatId.isNotEmpty()) {
+            val key = "orders_thread_id_$chatId"
+            if (prefs.contains(key)) return prefs.getInt(key, 0)
+        }
+        return prefs.getInt("orders_thread_id", getMessageThreadId())
+    }
+
+    fun setOrdersThreadId(threadId: Int) {
+        val editor = prefs.edit()
+            .putInt("orders_thread_id", threadId)
+            .putInt("message_thread_id", threadId)
+        if (threadId == 0) {
+            editor.remove("orders_thread_id")
+        }
+        editor.apply()
+    }
+
+    fun getOrdersThreadId(chatId: String): Int {
+        val key = "orders_thread_id_$chatId"
+        if (prefs.contains(key)) return prefs.getInt(key, 0)
+        if (prefs.contains("orders_thread_id")) return prefs.getInt("orders_thread_id", 0)
+        return getMessageThreadId(chatId)
+    }
+
+    fun setOrdersThreadId(chatId: String, threadId: Int) {
+        val editor = prefs.edit()
+            .putInt("orders_thread_id_$chatId", threadId)
+            .putInt("orders_thread_id", threadId)
+            .putInt("message_thread_id_$chatId", threadId)
+        if (threadId > 0) {
+            editor.putString("message_thread_chat_id", chatId)
+                .putInt("message_thread_id", threadId)
+        }
+        editor.apply()
+    }
+
+    fun getSupplyThreadId(): Int {
+        val chatId = getAllChatIds().firstOrNull() ?: ""
+        if (chatId.isNotEmpty()) {
+            val key = "supply_thread_id_$chatId"
+            if (prefs.contains(key)) return prefs.getInt(key, 0)
+        }
+        return prefs.getInt("supply_thread_id", getMessageThreadId())
+    }
+
+    fun setSupplyThreadId(threadId: Int) {
+        val editor = prefs.edit().putInt("supply_thread_id", threadId)
+        if (threadId == 0) {
+            editor.remove("supply_thread_id")
+        }
+        editor.apply()
+    }
+
+    fun getSupplyThreadId(chatId: String): Int {
+        val key = "supply_thread_id_$chatId"
+        if (prefs.contains(key)) return prefs.getInt(key, 0)
+        if (prefs.contains("supply_thread_id")) return prefs.getInt("supply_thread_id", 0)
+        return getMessageThreadId(chatId)
+    }
+
+    fun setSupplyThreadId(chatId: String, threadId: Int) {
+        prefs.edit()
+            .putInt("supply_thread_id_$chatId", threadId)
+            .putInt("supply_thread_id", threadId)
+            .apply()
     }
 
 

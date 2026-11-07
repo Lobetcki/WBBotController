@@ -380,7 +380,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
     /**
      * Генерация CSV-файла (Лист подбора) для печати/склада
      */
-    suspend fun generateSelectionSheet(supplyId: String): File? = withContext(Dispatchers.IO) {
+    suspend fun generateSelectionSheet(supplyId: String, stickers: List<StickerForOrder>): File? = withContext(Dispatchers.IO) {
         val orderIds = getOrderIdsList(supplyId) ?: return@withContext null
         if (orderIds.isEmpty()) return@withContext null
 
@@ -391,7 +391,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
         FileOutputStream(tempFile).use { fos ->
             fos.write(bom)
             val writer = fos.bufferedWriter(Charsets.UTF_8)
-            writer.write("№ задания;Артикул продавца;Дата создания;Цвет")
+            writer.write("№ задания;Артикул продавца;Дата создания;Стикер")
             writer.newLine()
 
             orders.forEach { order ->
@@ -399,7 +399,9 @@ class WBDeliveryAndQRCodes(private val context: Context) {
                     order.id.toString(),
                     order.article,
                     order.createdAt,
-                    order.colorCode ?: ""
+                    stickers.find { it.orderId == order.id }
+                        ?.let { "${it.partA} ${it.partB}" }
+                        ?: ""
                 )
                 writer.write(row.joinToString(";") { escapeCsv(it) })
                 writer.newLine()
