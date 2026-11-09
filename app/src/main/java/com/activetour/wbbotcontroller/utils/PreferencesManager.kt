@@ -47,12 +47,137 @@ class PreferencesManager(context: Context) {
 
     fun clearMessageThreadId(chatId: String, threadId: Int) {
         val editor = prefs.edit().putInt("message_thread_id_$chatId", 0)
+            .putInt("orders_thread_id_$chatId", 0)
+            .putInt("supply_thread_id_$chatId", 0)
         if (prefs.getString("message_thread_chat_id", null) == chatId && getMessageThreadId() == threadId) {
             editor.putInt("message_thread_id", 0).remove("message_thread_chat_id")
         } else if (prefs.getString("message_thread_chat_id", null) == null && getMessageThreadId() == threadId) {
             editor.putInt("message_thread_id", 0)
         }
         editor.apply()
+    }
+
+    // ==================== Orders & Supply Specific Chats and Threads ====================
+
+    fun getOrdersChatIds(): Set<String> {
+        val botId = getBotId()
+        val set = prefs.getStringSet("orders_chat_ids", emptySet()) ?: emptySet()
+        val cleaned = set.filter { it.isNotBlank() && it != botId }.toSet()
+        if (cleaned.isNotEmpty()) return cleaned
+        return getAllChatIds()
+    }
+
+    fun addOrdersChatId(chatId: String) {
+        if (chatId.isBlank()) return
+        val botId = getBotId()
+        if (botId.isNotEmpty() && chatId == botId) return
+        val current = (prefs.getStringSet("orders_chat_ids", emptySet()) ?: emptySet()).toMutableSet()
+        if (current.add(chatId)) {
+            prefs.edit().putStringSet("orders_chat_ids", current).apply()
+        }
+        addChatId(chatId)
+    }
+
+    fun getSupplyChatIds(): Set<String> {
+        val botId = getBotId()
+        val set = prefs.getStringSet("supply_chat_ids", emptySet()) ?: emptySet()
+        val cleaned = set.filter { it.isNotBlank() && it != botId }.toSet()
+        if (cleaned.isNotEmpty()) return cleaned
+        return getOrdersChatIds()
+    }
+
+    fun addSupplyChatId(chatId: String) {
+        if (chatId.isBlank()) return
+        val botId = getBotId()
+        if (botId.isNotEmpty() && chatId == botId) return
+        val current = (prefs.getStringSet("supply_chat_ids", emptySet()) ?: emptySet()).toMutableSet()
+        if (current.add(chatId)) {
+            prefs.edit().putStringSet("supply_chat_ids", current).apply()
+        }
+        addChatId(chatId)
+    }
+
+    fun getOrdersChatId(): String = getOrdersChatIds().firstOrNull() ?: ""
+
+    fun setOrdersChatId(chatId: String) {
+        addOrdersChatId(chatId)
+    }
+
+    fun getSupplyChatId(): String = getSupplyChatIds().firstOrNull() ?: ""
+
+    fun setSupplyChatId(chatId: String) {
+        addSupplyChatId(chatId)
+    }
+
+    fun getOrdersThreadId(): Int {
+        val chatId = getOrdersChatId()
+        if (chatId.isNotEmpty()) {
+            val key = "orders_thread_id_$chatId"
+            if (prefs.contains(key)) return prefs.getInt(key, 0)
+        }
+        return prefs.getInt("orders_thread_id", getMessageThreadId())
+    }
+
+    fun setOrdersThreadId(threadId: Int) {
+        val editor = prefs.edit()
+            .putInt("orders_thread_id", threadId)
+            .putInt("message_thread_id", threadId)
+        if (threadId == 0) {
+            editor.remove("orders_thread_id")
+        }
+        editor.apply()
+    }
+
+    fun getOrdersThreadId(chatId: String): Int {
+        val key = "orders_thread_id_$chatId"
+        if (prefs.contains(key)) return prefs.getInt(key, 0)
+        if (prefs.contains("orders_thread_id")) return prefs.getInt("orders_thread_id", 0)
+        return getMessageThreadId(chatId)
+    }
+
+    fun setOrdersThreadId(chatId: String, threadId: Int) {
+        addOrdersChatId(chatId)
+        val editor = prefs.edit()
+            .putInt("orders_thread_id_$chatId", threadId)
+            .putInt("orders_thread_id", threadId)
+            .putInt("message_thread_id_$chatId", threadId)
+        if (threadId > 0) {
+            editor.putString("message_thread_chat_id", chatId)
+                .putInt("message_thread_id", threadId)
+        }
+        editor.apply()
+    }
+
+    fun getSupplyThreadId(): Int {
+        val chatId = getSupplyChatId()
+        if (chatId.isNotEmpty()) {
+            val key = "supply_thread_id_$chatId"
+            if (prefs.contains(key)) return prefs.getInt(key, 0)
+        }
+        return prefs.getInt("supply_thread_id", getMessageThreadId())
+    }
+
+    fun setSupplyThreadId(threadId: Int) {
+        val editor = prefs.edit().putInt("supply_thread_id", threadId)
+        if (threadId == 0) {
+            editor.remove("supply_thread_id")
+        }
+        editor.apply()
+    }
+
+    fun getSupplyThreadId(chatId: String): Int {
+        val key = "supply_thread_id_$chatId"
+        if (prefs.contains(key)) return prefs.getInt(key, 0)
+        if (prefs.contains("supply_thread_id")) return prefs.getInt("supply_thread_id", 0)
+        return getMessageThreadId(chatId)
+    }
+
+    fun setSupplyThreadId(chatId: String, threadId: Int) {
+        addSupplyChatId(chatId)
+        prefs.edit()
+            .putInt("supply_thread_id_$chatId", threadId)
+            .putInt("supply_thread_id", threadId)
+            .apply()
     }
 
 
@@ -114,15 +239,15 @@ class PreferencesManager(context: Context) {
 
     fun getWbAddOrdersUrl(): String = prefs.getString(   // URL добавления заказов
         "wb_add_orders_url",
-        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
-    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
+        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
+    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
 
     fun setWbAddOrdersUrl(url: String) = prefs.edit().putString("wb_add_orders_url", url).apply()
 
     fun getWbIdOrdersInSupplyUrl(): String = prefs.getString(   // URL id всех заказов в поставке c определенным id
         "wb_id_orders_in_supply_url",
-        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
-    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
+        "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
+    ) ?: "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
 
     fun setWbIdOrdersInSupplyUrl(url: String) = prefs.edit().putString("wb_id_orders_in_supply_url", url).apply()
 
@@ -135,22 +260,22 @@ class PreferencesManager(context: Context) {
 
     fun getWBListBoxIDsUrl(): String = prefs.getString(   // URL Получить список id грузомест поставки
         "wb_list_ids_box_url",
-        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
-    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
 
     fun setWBListBoxIDsUrl(url: String) = prefs.edit().putString("wb_list_ids_box_url", url).apply()
 
     fun getWBQRCodeSuppliesUrl(): String = prefs.getString(   // URL QR-кода грузомест поставки
         "wb_qr_codes_url",
-        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx/stickers"
-    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx/stickers"
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx/stickers"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx/stickers"
 
     fun setWBQRCodeSuppliesUrl(url: String) = prefs.edit().putString("wb_qr_codes_url", url).apply()
 
     fun getWbAddNumberCargoSpacesUrl(): String = prefs.getString(   // URL добавления грузомест
         "wb_add_number_cargo_spaces_url",
-        "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
-    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/%s/trbx"
+        "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
+    ) ?: "https://marketplace-api.wildberries.ru/api/v3/supplies/{supplyId}/trbx"
 
     fun setWbAddNumberCargoSpacesUrl(url: String) = prefs.edit().putString("wb_add_number_cargo_spaces_url", url).apply()
 

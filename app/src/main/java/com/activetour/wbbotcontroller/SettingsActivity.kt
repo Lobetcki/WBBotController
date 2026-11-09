@@ -82,9 +82,10 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
 
-    // Telegram Settings (только токен ID подгруппы(темы чата), остальное автоматически)
+    // Telegram Settings
     var botToken by remember { mutableStateOf(preferencesManager.getBotToken()) }
-    var messageThreadId by remember { mutableStateOf(preferencesManager.getMessageThreadId().toString()) }
+    var ordersThreadId by remember { mutableStateOf(preferencesManager.getOrdersThreadId().let { if (it == 0) "" else it.toString() }) }
+    var supplyThreadId by remember { mutableStateOf(preferencesManager.getSupplyThreadId().let { if (it == 0) "" else it.toString() }) }
 
     // Wildberries Settings
     var wbApiToken by remember { mutableStateOf(preferencesManager.getWbApiToken()) }
@@ -157,13 +158,24 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedTextField(
-                value = messageThreadId,
-                onValueChange = { messageThreadId = it },
-                label = { Text("ID подгруппы (темы чата)") },
-                placeholder = { Text("Оставьте пустым – определится автоматически") },
+                value = ordersThreadId,
+                onValueChange = { ordersThreadId = it },
+                label = { Text("ID подчата для Заказов") },
+                placeholder = { Text("Определится автоматически при команде СТАРТ") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = supplyThreadId,
+                onValueChange = { supplyThreadId = it },
+                label = { Text("ID подчата для Поставок (QR-коды, стикеры)") },
+                placeholder = { Text("Определится автоматически при команде ПОСТАВКА") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
-                supportingText = { Text("Если бот отправляет не в ту тему, остановите бота, очистите поле, сохраните настройки, запустите бота, а затем напишите слово СТАРТ в нужной теме – ID определится автоматически после запуска") }
+                supportingText = { Text("Если указать один и тот же ID для обоих подчатов (или оставить пустыми в обычном чате), все сообщения будут приходить в один подчат/чат.") }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -181,9 +193,10 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "• Chat ID определяется автоматически при первом сообщении боту\n" +
-                                "• ID подгруппы (темы) тоже определяется автоматически из первого сообщения\n" +
-                                "• Если нужно сменить тему – остановите бота, очистите поле ID подгруппы, сохраните настройки, запустите бота и напишите боту слово СТАРТ в новой теме",
+                        text = "• Chat ID и ID подчатов определяются автоматически при отправке команд боту\n" +
+                                "• Команда СТАРТ активирует бота и привязывает всю информацию (заказы, стикеры, QR-коды, листы подбора) к текущему подчату/чату\n" +
+                                "• Если вы хотите перенаправить стикеры, QR-коды и листы подбора в другой подчат — отправьте команду ПОСТАВКА в нужной теме\n" +
+                                "• Вы также можете вручную изменить или очистить ID подчатов в полях выше",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
@@ -279,9 +292,12 @@ fun SettingsScreen(
                     preferencesManager.setWbAddOrdersUrl(wbAddOrdersUrl)
                     preferencesManager.setWbIdOrdersInSupplyUrl(wbIdOrdersInSupplyUrl)
 
-                    // Сохраняем ID подгруппы (если введено число)
-                    val threadId = messageThreadId.toIntOrNull() ?: 0
-                    preferencesManager.setMessageThreadId(threadId)
+                    // Сохраняем ID подгрупп (если введено число)
+                    val oThread = ordersThreadId.toIntOrNull() ?: 0
+                    preferencesManager.setOrdersThreadId(oThread)
+
+                    val sThread = supplyThreadId.toIntOrNull() ?: 0
+                    preferencesManager.setSupplyThreadId(sThread)
 
                     checkInterval.toIntOrNull()?.let {
                         if (it >= 15) {
@@ -343,7 +359,8 @@ fun SettingsScreen(
                                 "галочку поставте на <Маркетплейс> и " +
                                 "<Я понимаю, что не следует передавать токен третьим лицам>, дайте наименование токену.\n" +
                                 "   4. Нажмите <Создать токен> \n\n" +
-                                "📌 После того как нажмете на кнопку включить в приложении, напишите в чате телеграмма(в который подключили бота) слово СТАРТ для активации",
+                                "📌 После запуска приложения отправьте команду СТАРТ в Telegram-чат/подчат для активации бота (вся информация по умолчанию будет выводиться туда).\n" +
+                                "Если вы хотите выводить листы подбора, стикеры и QR-коды в отдельном подчате — откройте его и отправьте команду ПОСТАВКА.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -366,8 +383,8 @@ fun SettingsScreen(
                         wbApiToken = ""
                         wbOrdersUrl = "https://marketplace-api.wildberries.ru/api/v3/orders/new"
                         wbSuppliesUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies"
-                        wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/orders"
-                        wbIdOrdersInSupplyUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/%s/order-ids"
+                        wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
+                        wbIdOrdersInSupplyUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
                         checkInterval = "15"
                         showResetDialog = false
                         saveSuccess = false

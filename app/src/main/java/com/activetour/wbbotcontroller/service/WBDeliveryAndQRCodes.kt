@@ -41,7 +41,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
             return@withContext null
         }
 
-        val urlStr = String.format(prefs.getWbIdOrdersInSupplyUrl(), supplyId)
+        val urlStr = prefs.getWbIdOrdersInSupplyUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
         val request = Request.Builder()
             .url(urlStr)
             .addHeader("Authorization", "Bearer $token")
@@ -238,7 +238,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
             Log.e(TAG, "Неподдерживаемый формат QR-стикера грузоместа: $type")
             return@withContext emptyList()
         }
-        val rawUrl = String.format(prefs.getWBQRCodeSuppliesUrl(), supplyId)
+        val rawUrl = prefs.getWBQRCodeSuppliesUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
 
         // Для этого метода WB требует параметр type: svg, zplv, zplh или png.
         val url = rawUrl.toHttpUrlOrNull()
@@ -312,7 +312,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
      */
     private suspend fun getTrbxIdsForSupply(supplyId: String): List<String>? = withContext(Dispatchers.IO) {
         val token = prefs.getWbApiToken()
-        val url = String.format(prefs.getWBListBoxIDsUrl(), supplyId)
+        val url = prefs.getWBListBoxIDsUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
 
         val request = Request.Builder()
             .url(url)
@@ -360,7 +360,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 
         val jsonBody = gson.toJson(mapOf("amount" to numberCargoSpaces))
         val body = jsonBody.toRequestBody(mediaType)
-        val url = String.format(prefs.getWbAddNumberCargoSpacesUrl(), supplyId)
+        val url = prefs.getWbAddNumberCargoSpacesUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
 
         val request = Request.Builder()
             .url(url)
@@ -380,7 +380,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
     /**
      * Генерация CSV-файла (Лист подбора) для печати/склада
      */
-    suspend fun generateSelectionSheet(supplyId: String): File? = withContext(Dispatchers.IO) {
+    suspend fun generateSelectionSheet(supplyId: String, stickers: List<StickerForOrder>): File? = withContext(Dispatchers.IO) {
         val orderIds = getOrderIdsList(supplyId) ?: return@withContext null
         if (orderIds.isEmpty()) return@withContext null
 
@@ -391,7 +391,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
         FileOutputStream(tempFile).use { fos ->
             fos.write(bom)
             val writer = fos.bufferedWriter(Charsets.UTF_8)
-            writer.write("№ задания;Артикул продавца;Дата создания;Цвет")
+            writer.write("№ задания;Артикул продавца;Дата создания;Стикер")
             writer.newLine()
 
             orders.forEach { order ->
@@ -399,7 +399,9 @@ class WBDeliveryAndQRCodes(private val context: Context) {
                     order.id.toString(),
                     order.article,
                     order.createdAt,
-                    order.colorCode ?: ""
+                    stickers.find { it.orderId == order.id }
+                        ?.let { "${it.partA} ${it.partB}" }
+                        ?: ""
                 )
                 writer.write(row.joinToString(";") { escapeCsv(it) })
                 writer.newLine()
@@ -441,6 +443,51 @@ class WBDeliveryAndQRCodes(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "❌ Ошибка передачи поставки в доставку: ${e.message}", e)
             false
+        }
+    }
+
+    /**
+     * Объединяет все отдельные файлы стикеров в один единый многостраничный PDF-файл
+     */
+    fun createMergedStickersPdf(stickers: List<StickerForOrder>, supplyId: String): File? {
+        val validStickers = stickers.filter { it.file.exists() }
+        if (validStickers.isEmpty()) return null
+
+        val outputFile = File(context.cacheDir, "all_stickers_${supplyId}.pdf")
+        val pdfDocument = android.graphics.pdf.PdfDocument()
+
+        return try {
+            var pageIndex = 1
+            for (sticker in validStickers) {
+                val bitmap = android.graphics.BitmapFactory.decodeFile(sticker.file.absolutePath) ?: continue
+
+                val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, pageIndex).create()
+                val page = pdfDocument.startPage(pageInfo)
+
+                page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                pdfDocument.finishPage(page)
+
+                bitmap.recycle()
+                pageIndex++
+            }
+
+            if (pageIndex == 1) {
+                pdfDocument.close()
+                return null
+            }
+
+            FileOutputStream(outputFile).use { fos ->
+                pdfDocument.writeTo(fos)
+            }
+            Log.i(TAG, "✅ Создан объединённый PDF-файл со стикерами: ${outputFile.absolutePath}")
+            outputFile
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Ошибка объединения стикеров в PDF: ${e.message}", e)
+            null
+        } finally {
+            try {
+                pdfDocument.close()
+            } catch (_: Exception) {}
         }
     }
 }
