@@ -25,17 +25,26 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery
+import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands
 import org.telegram.telegrambots.meta.api.methods.send.SendDocument
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage
 import org.telegram.telegrambots.meta.api.objects.InputFile
 import org.telegram.telegrambots.meta.api.objects.Update
+import org.telegram.telegrambots.meta.api.objects.commands.BotCommand
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardRow
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 import java.io.File
 import java.time.LocalDateTime
@@ -127,6 +136,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     Log.d(TAG, "startBot: регистрация бота...")
                     botApplication.registerBot(token, this@TelegramBotService)
                     Log.d(TAG, "✅ startBot: бот успешно зарегистрирован")
+
+                    registerBotCommands()
 
                     val botId = token.split(":").firstOrNull() ?: ""
                     if (botId.isNotEmpty()) {
@@ -311,12 +322,100 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     }
 
     /**
-     * Обработка входящих сообщений от Telegram
+     * Обработка входящих сообщений и кнопок от Telegram
      */
     override fun consume(update: Update) {
         Log.d(TAG, "🔔 consume: получено обновление от Telegram")
 
         try {
+            // 1. Обработка нажатий на инлайн-кнопки (CallbackQuery)
+            if (update.hasCallbackQuery()) {
+                val callbackQuery = update.callbackQuery
+                val callbackData = callbackQuery.data
+                val chatId = callbackQuery.message.chatId.toString()
+                val threadId = (callbackQuery.message as? org.telegram.telegrambots.meta.api.objects.message.Message)?.messageThreadId ?: 0
+
+                Log.d(TAG, "🔔 callbackQuery: chatId=$chatId, threadId=$threadId, data=$callbackData")
+
+                try {
+                    val answer = AnswerCallbackQuery.builder()
+                        .callbackQueryId(callbackQuery.id)
+                        .build()
+                    telegramClient.execute(answer)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Ошибка ответа на callbackQuery: ${e.message}")
+                }
+
+                // Удаляем предыдущее сообщение с кнопками меню после нажатия
+                deleteMessage(chatId, callbackQuery.message.messageId)
+
+                when (callbackData) {
+                    "cmd_check" -> {
+                        sendOrdersMessageToAllChats("🔍 Выполняю проверку заказов...")
+                        serviceScope.launch {
+                            checkAndNotifyAboutOrders(false)
+                        }
+                    }
+
+                    "cmd_supply" -> {
+                        val targetThread = preferencesManager.getSupplyThreadId(chatId)
+                        serviceScope.launch {
+                            val supplyChecker = WbSupplyChecker(applicationContext)
+                            val activeSupply = supplyChecker.getLastActiveSupply()
+
+                            if (activeSupply == null) {
+                                sendMessage(chatId, "❌ *Активной поставки для обработки не найдено!*", targetThread)
+                            } else {
+                                currentSupplyId = activeSupply
+                                awaitingCargoSpacesChats.add(chatId)
+                                sendMessage(chatId, buildString {
+                                    appendLine("📦 *Формирование поставки:* `$activeSupply`")
+                                    appendLine("Укажите количество коробок (грузомест) числом (например: 1, 2, 3...)")
+                                    appendLine("Или отправьте *Отмена* для отмены действия.")
+                                }, targetThread)
+                            }
+                        }
+                    }
+
+                    "cmd_deliver" -> {
+                        val targetThread = preferencesManager.getSupplyThreadId(chatId)
+                        serviceScope.launch {
+                            deliverActiveSupply(chatId, targetThread)
+                        }
+                    }
+
+                    "cmd_status" -> {
+                        val targetThread = threadId ?: 0
+                        val oTopic = preferencesManager.getOrdersThreadId(chatId)
+                        val sTopic = preferencesManager.getSupplyThreadId(chatId)
+                        sendMessage(chatId, buildString {
+                            appendLine("✅ *Статус работы бота:*")
+                            appendLine("• Состояние: Работает 🟢")
+                            appendLine("• Время: ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss dd.MM.yyyy"))}")
+                            appendLine("• Интервал проверки: ${preferencesManager.getCheckIntervalMinutes()} минут")
+                            if (oTopic > 0) appendLine("• ID темы для Заказов: `$oTopic`")
+                            if (sTopic > 0) appendLine("• ID темы для Поставок: `$sTopic`")
+                        }, targetThread)
+                    }
+
+                    "cmd_help" -> {
+                        val targetThread = threadId ?: 0
+                        sendMessage(chatId, buildString {
+                            appendLine("🤖 *Справка и меню управления:*")
+                            appendLine("• `СТАРТ` — активировать бота (вся информация по умолчанию выводится сюда)")
+                            appendLine("• `ПОСТАВКА` — перенаправить вывод листов подбора, стикеров и QR-кодов в этот подчат")
+                            appendLine("• `Жиган проверь` — запустить мгновенную проверку заказов")
+                            appendLine("• `Жиган поставка` — сформировать поставку, получить лист подбора, стикеры в PDF и QR-коды")
+                            appendLine("• `Жиган в доставку` — передать активную поставку в статус 'В доставке'")
+                            appendLine("• `/status` — проверить статус работы бота")
+                            appendLine("• `/help` — показать эту справку и меню")
+                        }, targetThread, createBotMenuKeyboard(chatId, targetThread))
+                    }
+                }
+                return
+            }
+
+            // 2. Обработка текстовых сообщений
             if (update.hasMessage() && update.message.hasText()) {
 
                 val chatId = update.message.chatId.toString()
@@ -326,7 +425,6 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                 // Обработка стартовых команд
                 if (text.equals("ПОСТАВКА", ignoreCase = true)
-                    || text.equals("ПОСТАВКИ", ignoreCase = true)
                     || text.equals("/start_supply", ignoreCase = true)
                 ) {
 
@@ -336,9 +434,11 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                     sendMessage(chatId, buildString {
                         appendLine("✅ *Подчат для ПОСТАВОК перепривязан!*")
-                        appendLine("📌 Теперь листы подбора, стикеры и QR-коды по команде `Жиган поставка` будут выводиться в этот подчат.")
+                        appendLine("📌 Теперь листы подбора, стикеры в PDF и QR-коды по команде `Жиган поставка` будут выводиться в этот подчат.")
                         appendLine("📌 Сообщения о заказах продолжат приходить в основной подчат/чат.")
-                    }, currentThread)
+                    }, currentThread, createMenuLauncherKeyboard())
+
+                    sendMessage(chatId, "Меню", currentThread, createBotMenuKeyboard(chatId, currentThread))
                     return
                 }
 
@@ -358,7 +458,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         appendLine("📌 В этот подчат/чат будет приходить вся информация приложения (заказы, стикеры, QR-коды и листы подбора).")
                         appendLine()
                         appendLine("💡 *Для разделения:* если вы хотите получать стикеры и QR-коды в ДРУГОМ подчате, просто напишите команду `ПОСТАВКА` в том подчате.")
-                    }, currentThread)
+                    }, currentThread, createMenuLauncherKeyboard())
+
+                    sendMessage(chatId, "Меню", currentThread, createBotMenuKeyboard(chatId, currentThread))
 
                     serviceScope.launch {
                         checkAndNotifyAboutOrders(false)
@@ -416,20 +518,21 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                 // Обработка команд
                 when {
-                    text.contains("Жиган проверь", ignoreCase = true) || text.equals(
-                        "/check",
-                        ignoreCase = true
-                    ) -> {
+                    text.contains("проверить заказы", ignoreCase = true)
+                            || text.contains("Жиган проверь", ignoreCase = true)
+                            || text.equals("/check", ignoreCase = true) -> {
                         sendOrdersMessageToAllChats("🔍 Выполняю проверку...")
                         serviceScope.launch {
                             checkAndNotifyAboutOrders(false)
                         }
                     }
 
-                    text.contains("Жиган поставка", ignoreCase = true)
+                    text.contains("Сформировать поставку", ignoreCase = true)
+                            || text.contains("Жиган поставка", ignoreCase = true)
                             || text.contains("Жиган qr", ignoreCase = true)
                             || text.contains("Жиган стикеры", ignoreCase = true)
-                            || text.equals("/qr", ignoreCase = true) -> {
+                            || text.equals("/qr", ignoreCase = true)
+                            || text.equals("/supply", ignoreCase = true) -> {
 
                         val targetThread = preferencesManager.getSupplyThreadId(chatId)
                         serviceScope.launch {
@@ -450,7 +553,20 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         }
                     }
 
-                    text.equals("/status", ignoreCase = true) -> {
+                    text.contains("Передать в доставку", ignoreCase = true)
+                            || text.contains("Жиган в доставку", ignoreCase = true)
+                            || text.contains("Жиган закрыть поставку", ignoreCase = true)
+                            || text.contains("Жиган доставку", ignoreCase = true)
+                            || text.equals("/deliver", ignoreCase = true) -> {
+
+                        val targetThread = preferencesManager.getSupplyThreadId(chatId)
+                        serviceScope.launch {
+                            deliverActiveSupply(chatId, targetThread)
+                        }
+                    }
+
+                    text.contains("Статус", ignoreCase = true)
+                            || text.equals("/status", ignoreCase = true) -> {
                         val targetThread = threadId ?: 0
                         val oTopic = preferencesManager.getOrdersThreadId(chatId)
                         val sTopic = preferencesManager.getSupplyThreadId(chatId)
@@ -469,17 +585,15 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                         }, targetThread)
                     }
 
-                    text.equals("/help", ignoreCase = true) -> {
+                    text.contains("Меню", ignoreCase = true)
+                            || text.contains("Справка", ignoreCase = true)
+                            || text.equals("Меню", ignoreCase = true)
+                            || text.equals("/help", ignoreCase = true)
+                            || text.equals("/menu", ignoreCase = true) -> {
                         val targetThread = threadId ?: 0
-                        sendMessage(chatId, buildString {
-                            appendLine("🤖 *Справка по командам бота:*")
-                            appendLine("• `СТАРТ` — активировать бота (вся информация по умолчанию будет выводиться сюда)")
-                            appendLine("• `ПОСТАВКА` — перенаправить вывод листов подбора, стикеров и QR-кодов в этот подчат")
-                            appendLine("• `Жиган проверь` — запустить мгновенную проверку заказов")
-                            appendLine("• `Жиган поставка` — сформировать поставку, получить лист подбора, стикеры и QR-коды")
-                            appendLine("• `/status` — проверить текущий статус работы бота")
-                            appendLine("• `/help` — показать эту справку")
-                        }, targetThread)
+                        // Удаляем исходящее текстовое сообщение пользователя, вызвавшее меню
+                        deleteMessage(chatId, update.message.messageId)
+                        sendMessage(chatId, "Меню", targetThread, createBotMenuKeyboard(chatId, targetThread))
                     }
 
                     else -> {
@@ -489,6 +603,24 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ consume: ОШИБКА!", e)
+        }
+    }
+
+    /**
+     * Вспомогательный метод для удаления сообщения в Telegram
+     */
+    private fun deleteMessage(chatId: String, messageId: Int) {
+        if (chatId.isBlank() || messageId <= 0) return
+        if (!::telegramClient.isInitialized) return
+        try {
+            val deleteMsg = DeleteMessage.builder()
+                .chatId(chatId)
+                .messageId(messageId)
+                .build()
+            telegramClient.execute(deleteMsg)
+            Log.d(TAG, "🗑️ Сообщение $messageId в чате $chatId удалено")
+        } catch (e: Exception) {
+            Log.w(TAG, "Не удалось удалить сообщение $messageId в $chatId: ${e.message}")
         }
     }
 
@@ -506,6 +638,129 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         if (!preferencesManager.getAllChatIds().contains(chatId)) {
             preferencesManager.addChatId(chatId)
             Log.d(TAG, "✅ Чат автоматически добавлен: $chatId")
+        }
+    }
+
+    /**
+     * Регистрирует стандартные команды бота в Меню Telegram (кнопка [/])
+     */
+    private fun registerBotCommands() {
+        try {
+            val commands = listOf(
+                BotCommand("/check", "Проверить новые заказы"),
+                BotCommand("/supply", "Сформировать поставку (стикеры, QR-коды)"),
+                BotCommand("/deliver", "Передать поставку в доставку"),
+                BotCommand("/status", "Статус работы бота"),
+                BotCommand("/help", "Справка и меню")
+            )
+            val setMyCommands = SetMyCommands.builder()
+                .commands(commands)
+                .build()
+            telegramClient.execute(setMyCommands)
+            Log.d(TAG, "✅ Команды бота зарегистрированы в меню Telegram")
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка регистрации команд бота: ${e.message}")
+        }
+    }
+
+    /**
+     * Создаёт одну компактную кнопку [📱 Меню] рядом с полем ввода текста в Telegram
+     */
+    private fun createMenuLauncherKeyboard(): ReplyKeyboardMarkup {
+        val row = KeyboardRow("📱 Меню")
+        return ReplyKeyboardMarkup.builder()
+            .keyboard(listOf(row))
+            .resizeKeyboard(true)
+            .isPersistent(true)
+            .build()
+    }
+
+    /**
+     * Создаёт адаптивное меню с инлайн-кнопками в Telegram в зависимости от подчата/чата
+     */
+    private fun createBotMenuKeyboard(chatId: String, threadId: Int): InlineKeyboardMarkup {
+        val ordersChat = preferencesManager.getOrdersChatId()
+        val supplyChat = preferencesManager.getSupplyChatId()
+        val ordersThread = preferencesManager.getOrdersThreadId(chatId)
+        val supplyThread = preferencesManager.getSupplyThreadId(chatId)
+
+        val isSingleTarget = (ordersChat == supplyChat || supplyChat.isEmpty()) && (ordersThread == supplyThread || supplyThread == 0)
+        val keyboardRows = mutableListOf<InlineKeyboardRow>()
+
+        if (isSingleTarget) {
+            keyboardRows.add(
+                InlineKeyboardRow(
+                    InlineKeyboardButton.builder().text("🔍 Проверить заказы").callbackData("cmd_check").build(),
+                    InlineKeyboardButton.builder().text("📦 Сформировать поставку").callbackData("cmd_supply").build()
+                )
+            )
+            keyboardRows.add(
+                InlineKeyboardRow(
+                    InlineKeyboardButton.builder().text("🚚 Передать в доставку").callbackData("cmd_deliver").build(),
+                    InlineKeyboardButton.builder().text("📊 Статус").callbackData("cmd_status").build()
+                )
+            )
+            keyboardRows.add(
+                InlineKeyboardRow(
+                    InlineKeyboardButton.builder().text("❓ Справка").callbackData("cmd_help").build()
+                )
+            )
+        } else {
+            val isSupplySubchat = (threadId == supplyThread || (threadId == 0 && chatId == supplyChat))
+
+            if (isSupplySubchat) {
+                keyboardRows.add(
+                    InlineKeyboardRow(
+                        InlineKeyboardButton.builder().text("📦 Сформировать поставку").callbackData("cmd_supply").build(),
+                        InlineKeyboardButton.builder().text("🚚 Передать в доставку").callbackData("cmd_deliver").build()
+                    )
+                )
+                keyboardRows.add(
+                    InlineKeyboardRow(
+                        InlineKeyboardButton.builder().text("📊 Статус").callbackData("cmd_status").build(),
+                        InlineKeyboardButton.builder().text("❓ Справка").callbackData("cmd_help").build()
+                    )
+                )
+            } else {
+                keyboardRows.add(
+                    InlineKeyboardRow(
+                        InlineKeyboardButton.builder().text("🔍 Проверить заказы").callbackData("cmd_check").build()
+                    )
+                )
+                keyboardRows.add(
+                    InlineKeyboardRow(
+                        InlineKeyboardButton.builder().text("📊 Статус").callbackData("cmd_status").build(),
+                        InlineKeyboardButton.builder().text("❓ Справка").callbackData("cmd_help").build()
+                    )
+                )
+            }
+        }
+
+        return InlineKeyboardMarkup.builder()
+            .keyboard(keyboardRows)
+            .build()
+    }
+
+    /**
+     * Переводит активную поставку в статус 'В доставке' в WB API
+     */
+    private suspend fun deliverActiveSupply(chatId: String, threadId: Int) {
+        val supplyChecker = WbSupplyChecker(applicationContext)
+        val activeSupply = supplyChecker.getLastActiveSupply()
+
+        if (activeSupply == null) {
+            sendMessage(chatId, "❌ *Активной поставки для перевода в доставку не найдено!*", threadId, createBotMenuKeyboard(chatId, threadId))
+            return
+        }
+
+        sendMessage(chatId, "🚚 Передаю поставку `$activeSupply` в статус 'В доставке'...", threadId)
+        val delivery = WBDeliveryAndQRCodes(applicationContext)
+        val success = delivery.sendToDelivery(activeSupply)
+
+        if (success) {
+            sendSupplyMessageToAllChats("✅ Поставка `$activeSupply` успешно переведена в статус 'В доставке'!")
+        } else {
+            sendSupplyMessageToAllChats("❌ Не удалось перевести поставку `$activeSupply` в статус 'В доставке'. Проверьте API токен и состояние поставки.")
         }
     }
 
@@ -540,8 +795,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     /**
      * Отправляет сообщение в конкретный чат и подчат (threadId)
      */
-    private fun sendMessage(chatId: String, text: String, overrideThreadId: Int? = null) {
-        if (text.isBlank() || chatId.isBlank()) return
+    private fun sendMessage(
+        chatId: String,
+        text: String,
+        overrideThreadId: Int? = null,
+        replyMarkup: ReplyKeyboard? = null
+    ) {
+        if (chatId.isBlank()) return
         val botId = preferencesManager.getBotId()
         if (botId.isNotEmpty() && chatId == botId) return
         if (!::telegramClient.isInitialized) {
@@ -558,6 +818,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 .apply {
                     if (messageThreadId > 0) {
                         this.messageThreadId(messageThreadId) // <-- Устанавливаем ID подгруппы
+                    }
+                    if (replyMarkup != null) {
+                        this.replyMarkup(replyMarkup)
                     }
                 }
                 .build()
@@ -766,11 +1029,11 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
             }
 
-//            // 5. Передаем поставку в доставку в WB
-//            val deliverySuccess = delivery.sendToDelivery(currentSupplyId!!)
-//            if (deliverySuccess) {
-//                sendSupplyMessageToAllChats("✅ Поставка `$currentSupplyId` переведена в статус 'В доставке'")
-//            }
+            // 5. Передаем поставку в доставку в WB
+            val deliverySuccess = delivery.sendToDelivery(currentSupplyId!!)
+            if (deliverySuccess) {
+                sendSupplyMessageToAllChats("✅ Поставка `$currentSupplyId` переведена в статус 'В доставке'")
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ sendToDeliveryAndGetQRCodes: ОШИБКА!", e)
