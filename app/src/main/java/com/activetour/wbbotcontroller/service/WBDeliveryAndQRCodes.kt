@@ -355,6 +355,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
      */
     suspend fun addCargoLocations(supplyId: String): Boolean = withContext(Dispatchers.IO) {
         val numberCargoSpaces = prefs.getNumberCargoSpaces()
+        if (numberCargoSpaces < 1) return@withContext false
         val token = prefs.getWbApiToken()
         if (token.isBlank()) return@withContext false
 

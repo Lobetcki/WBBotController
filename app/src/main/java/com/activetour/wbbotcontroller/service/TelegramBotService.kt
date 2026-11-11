@@ -509,7 +509,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     } else {
                         sendMessage(
                             chatId,
-                            "⚠️ *Пожалуйста, укажите количество коробок числом (например: 1, 2, 3)* или отправьте *Отмена*.",
+                            "⚠️ *Пожалуйста, укажите количество коробок числом больше 0* или отправьте *Отмена*.",
                             targetThread
                         )
                         return
@@ -546,7 +546,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                                 awaitingCargoSpacesChats.add(chatId)
                                 sendMessage(chatId, buildString {
                                     appendLine("📦 *Формирование поставки:* `$activeSupply`")
-                                    appendLine("Укажите количество коробок (грузомест) числом (например: 1, 2, 3...)")
+                                    appendLine("Укажите количество коробок (грузомест) числом больше 0.")
                                     appendLine("Или отправьте *Отмена* для отмены действия.")
                                 }, targetThread)
                             }
