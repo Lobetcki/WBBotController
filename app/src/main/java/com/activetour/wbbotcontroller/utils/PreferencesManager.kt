@@ -324,6 +324,20 @@ class PreferencesManager(context: Context) {
         return getBotToken().isNotEmpty() && getWbApiToken().isNotEmpty()
     }
 
+    fun resetUrlsToDefaults() {
+        prefs.edit()
+            .remove("wb_orders_url")
+            .remove("wb_supplies_url")
+            .remove("wb_add_orders_url")
+            .remove("wb_id_orders_in_supply_url")
+            .remove("wb_stickers_url")
+            .remove("wb_list_ids_box_url")
+            .remove("wb_qr_codes_url")
+            .remove("wb_add_number_cargo_spaces_url")
+            .remove("wb_orders_details_url")
+            .apply()
+    }
+
     fun resetAllSettings() {
         prefs.edit().clear().apply()
     }

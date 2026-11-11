@@ -39,6 +39,11 @@
             android:parentActivityName=".MainActivity"
             android:theme="@style/Theme.WBBotController" />
 
+        <activity
+            android:name=".UrlSettingsActivity"
+            android:parentActivityName=".SettingsActivity"
+            android:theme="@style/Theme.WBBotController" />
+
         <service
             android:name=".service.TelegramBotService"
             android:enabled="true"

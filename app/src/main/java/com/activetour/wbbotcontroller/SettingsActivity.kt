@@ -1,5 +1,6 @@
 package com.activetour.wbbotcontroller
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -89,10 +90,6 @@ fun SettingsScreen(
 
     // Wildberries Settings
     var wbApiToken by remember { mutableStateOf(preferencesManager.getWbApiToken()) }
-    var wbOrdersUrl by remember { mutableStateOf(preferencesManager.getWbOrdersUrl()) }
-    var wbSuppliesUrl by remember { mutableStateOf(preferencesManager.getWbSuppliesUrl()) }
-    var wbAddOrdersUrl by remember { mutableStateOf(preferencesManager.getWbAddOrdersUrl()) }
-    var wbIdOrdersInSupplyUrl by remember { mutableStateOf(preferencesManager.getWbIdOrdersInSupplyUrl()) }
 
     // Application Settings
     var checkInterval by remember { mutableStateOf(preferencesManager.getCheckIntervalMinutes().toString()) }
@@ -223,41 +220,18 @@ fun SettingsScreen(
                 supportingText = { Text("Обязательное поле. Получите в разделе Настройки → Доступ к API") }
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedTextField(
-                value = wbOrdersUrl,
-                onValueChange = { wbOrdersUrl = it },
-                label = { Text("URL заказов") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = wbSuppliesUrl,
-                onValueChange = { wbSuppliesUrl = it },
-                label = { Text("URL поставок") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = wbAddOrdersUrl,
-                onValueChange = { wbAddOrdersUrl = it },
-                label = { Text("URL добавления заказов") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = wbIdOrdersInSupplyUrl,
-                onValueChange = { wbIdOrdersInSupplyUrl = it },
-                label = { Text("URL id всех заказов в поставке") },
-                modifier = Modifier.fillMaxWidth()
-            )
+            Button(
+                onClick = {
+                    val intent = Intent(context, UrlSettingsActivity::class.java)
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+            ) {
+                Text("🔗 Настройка URL адресов API WB")
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
@@ -283,14 +257,9 @@ fun SettingsScreen(
             // === Кнопки действий ===
             Button(
                 onClick = {
-                    // Сохраняем только нужные настройки
+                    // Сохраняем настройки
                     preferencesManager.setBotToken(botToken)
                     preferencesManager.setWbApiToken(wbApiToken)
-
-                    preferencesManager.setWbOrdersUrl(wbOrdersUrl)
-                    preferencesManager.setWbSuppliesUrl(wbSuppliesUrl)
-                    preferencesManager.setWbAddOrdersUrl(wbAddOrdersUrl)
-                    preferencesManager.setWbIdOrdersInSupplyUrl(wbIdOrdersInSupplyUrl)
 
                     // Сохраняем ID подгрупп (если введено число)
                     val oThread = ordersThreadId.toIntOrNull() ?: 0
@@ -381,10 +350,8 @@ fun SettingsScreen(
                         // Обновляем все значения
                         botToken = ""
                         wbApiToken = ""
-                        wbOrdersUrl = "https://marketplace-api.wildberries.ru/api/v3/orders/new"
-                        wbSuppliesUrl = "https://marketplace-api.wildberries.ru/api/v3/supplies"
-                        wbAddOrdersUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/orders"
-                        wbIdOrdersInSupplyUrl = "https://marketplace-api.wildberries.ru/api/marketplace/v3/supplies/{supplyId}/order-ids"
+                        ordersThreadId = ""
+                        supplyThreadId = ""
                         checkInterval = "15"
                         showResetDialog = false
                         saveSuccess = false
