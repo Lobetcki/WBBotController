@@ -425,6 +425,10 @@ class WBDeliveryAndQRCodes(private val context: Context) {
      * Передать поставку в доставку
      */
     suspend fun sendToDelivery(supplyId: String, cargoSpacesCount: Int = prefs.getNumberCargoSpaces()): Boolean = withContext(Dispatchers.IO) {
+        if (cargoSpacesCount <= 0) {
+            Log.e(TAG, "❌ Передача в доставку заблокирована: количество грузомест $cargoSpacesCount <= 0!")
+            return@withContext false
+        }
         val token = prefs.getWbApiToken()
         if (token.isBlank()) return@withContext false
 

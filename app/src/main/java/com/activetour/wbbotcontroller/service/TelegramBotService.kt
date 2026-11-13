@@ -749,14 +749,24 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             return
         }
 
-        sendMessage(chatId, "🚚 Передаю поставку `$activeSupply` в статус 'В доставке'...", threadId)
+        val cargoSpaces = preferencesManager.getNumberCargoSpaces()
+        if (cargoSpaces <= 0) {
+            sendMessage(
+                chatId,
+                "⚠️ *Передача в доставку заблокирована!*\nКоличество коробок (грузомест) должно быть больше 0. Сейчас установлено: *$cargoSpaces*.\n\nСначала формируйте поставку и укажите количество коробок.",
+                threadId
+            )
+            return
+        }
+
+        sendMessage(chatId, "🚚 Передаю поставку `$activeSupply` в статус 'В доставке' (коробок: $cargoSpaces)...", threadId)
         val delivery = WBDeliveryAndQRCodes(applicationContext)
-        val success = delivery.sendToDelivery(activeSupply)
+        val success = delivery.sendToDelivery(activeSupply, cargoSpaces)
 
         if (success) {
-            sendSupplyMessageToAllChats("✅ Поставка `$activeSupply` успешно переведена в статус 'В доставке'!")
+            sendSupplyMessageToAllChats("✅ Поставка `$activeSupply` успешно переведена в статус 'В доставке'! (Коробок: $cargoSpaces)")
         } else {
-            sendSupplyMessageToAllChats("❌ Не удалось перевести поставку `$activeSupply` в статус 'В доставке'. Проверьте API токен и состояние поставки.")
+            sendSupplyMessageToAllChats("❌ Не удалось перевести поставку `$activeSupply` в статус 'В доставке'. Проверьте API токен, количество коробок (грузомест > 0) и состояние поставки.")
         }
     }
 

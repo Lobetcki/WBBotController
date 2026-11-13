@@ -234,6 +234,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sendToDeliveryAndGetQRCodes(cargoSpaces: Int) {
+        if (cargoSpaces <= 0) {
+            Toast.makeText(this, "⚠️ Количество коробок должно быть больше 0!", Toast.LENGTH_LONG).show()
+            return
+        }
         preferencesManager.setNumberCargoSpaces(cargoSpaces)
         if (preferencesManager.getAllChatIds().isEmpty()) {
             Toast.makeText(this, "Бот не активирован в чате Telegram", Toast.LENGTH_SHORT).show()
