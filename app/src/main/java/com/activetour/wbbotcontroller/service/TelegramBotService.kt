@@ -370,8 +370,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                                 awaitingCargoSpacesChats.add(chatId)
                                 sendMessage(chatId, buildString {
                                     appendLine("📦 *Формирование поставки:* `$activeSupply`")
-                                    appendLine("Укажите количество коробок (грузомест) числом (например: 1, 2, 3...)")
-                                    appendLine("Или отправьте *Отмена* для отмены действия.")
+                                    appendLine("Укажите количество коробок числом больше 0")
+                                    appendLine("Или отправьте *Отмена*.")
                                 }, targetThread)
                             }
                         }
@@ -497,11 +497,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     if (count != null && count > 0) {
                         awaitingCargoSpacesChats.remove(chatId)
                         preferencesManager.setNumberCargoSpaces(count)
-                        sendMessage(
-                            chatId,
-                            "✅ Установлено коробок: *$count*. Выполняю запрос поставки...",
-                            targetThread
-                        )
+//                        sendMessage(chatId, "✅ Установлено коробок: *$count*. Выполняю запрос поставки...", targetThread)
                         serviceScope.launch {
                             sendToDeliveryAndGetQRCodes()
                         }
@@ -546,8 +542,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                                 awaitingCargoSpacesChats.add(chatId)
                                 sendMessage(chatId, buildString {
                                     appendLine("📦 *Формирование поставки:* `$activeSupply`")
-                                    appendLine("Укажите количество коробок (грузомест) числом больше 0.")
-                                    appendLine("Или отправьте *Отмена* для отмены действия.")
+                                    appendLine("Укажите количество коробок числом больше 0.")
+                                    appendLine("Или отправьте *Отмена*")
                                 }, targetThread)
                             }
                         }
@@ -956,7 +952,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     private suspend fun sendToDeliveryAndGetQRCodes() {
         Log.d(TAG, "========== sendToDeliveryAndGetQRCodes: НАЧАЛО ==========")
         try {
-            sendSupplyMessageToAllChats("🔄 Запрос стикеров и QR-кодов поставки от Wildberries...")
+//            sendSupplyMessageToAllChats("🔄 Запрос стикеров и QR-кодов поставки от Wildberries...")
 
             val supplyChecker = WbSupplyChecker(applicationContext)
             currentSupplyId = supplyChecker.getLastActiveSupply()
@@ -967,7 +963,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             }
 
             val delivery = WBDeliveryAndQRCodes(applicationContext)
-            sendSupplyMessageToAllChats("📦 Найдена активная поставка: `$currentSupplyId`")
+//            sendSupplyMessageToAllChats("📦 Найдена активная поставка: `$currentSupplyId`")
 
             // 1. Добавляем грузоместа
             delivery.addCargoLocations(currentSupplyId!!)
@@ -994,13 +990,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             // 2. Получаем и отправляем стикеры для заказов в поставке (на товары)
             val stickers = delivery.getStickersForOrders(currentSupplyId!!)
             if (stickers.isNotEmpty()) {
-                sendSupplyMessageToAllChats("🏷 Получено стикеров для заказов: ${stickers.size}. Объединяю в PDF...")
+//                sendSupplyMessageToAllChats("🏷 Получено стикеров для заказов: ${stickers.size}. Объединяю в PDF...")
 
                 val mergedPdf = delivery.createMergedStickersPdf(stickers, currentSupplyId!!)
                 if (mergedPdf != null && mergedPdf.exists()) {
                     sendSupplyDocumentToAllChats(
                         mergedPdf,
-                        "🏷 Все стикеры заказов поставки `$currentSupplyId` (${stickers.size} шт.)"
+                        "🏷 Стикеры заказов - ${stickers.size} шт."
                     )
                     try { mergedPdf.delete() } catch (_: Exception) {}
                 } else {
@@ -1021,7 +1017,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             if (excelFile != null && excelFile.exists()) {
                 sendSupplyDocumentToAllChats(
                     excelFile,
-                    "📋 Лист подбора для поставки `$currentSupplyId`"
+                    "📋 Лист подбора"
                 )
                 try {
                     excelFile.delete()
@@ -1030,10 +1026,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             }
 
             // 5. Передаем поставку в доставку в WB
-            val deliverySuccess = delivery.sendToDelivery(currentSupplyId!!)
-            if (deliverySuccess) {
-                sendSupplyMessageToAllChats("✅ Поставка `$currentSupplyId` переведена в статус 'В доставке'")
-            }
+//            val deliverySuccess = delivery.sendToDelivery(currentSupplyId!!)
+//            if (deliverySuccess) {
+//                sendSupplyMessageToAllChats("✅ Поставка `$currentSupplyId` переведена в статус 'В доставке'")
+//            }
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ sendToDeliveryAndGetQRCodes: ОШИБКА!", e)
