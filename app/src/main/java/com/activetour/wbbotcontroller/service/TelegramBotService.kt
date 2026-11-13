@@ -411,6 +411,16 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                             appendLine("• `/help` — показать эту справку и меню")
                         }, targetThread, createBotMenuKeyboard(chatId, targetThread))
                     }
+
+                    "cmd_cancel" -> {
+                        try {
+                            val answer = AnswerCallbackQuery.builder()
+                                .callbackQueryId(callbackQuery.id)
+                                .text("❌ Действие отменено")
+                                .build()
+                            telegramClient.execute(answer)
+                        } catch (_: Exception) {}
+                    }
                 }
                 return
             }
@@ -731,6 +741,13 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 )
             }
         }
+
+        // Кнопка Отмена для случайного нажатия
+        keyboardRows.add(
+            InlineKeyboardRow(
+                InlineKeyboardButton.builder().text("❌ Отмена").callbackData("cmd_cancel").build()
+            )
+        )
 
         return InlineKeyboardMarkup.builder()
             .keyboard(keyboardRows)
