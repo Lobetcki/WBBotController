@@ -219,34 +219,51 @@ class WBDeliveryAndQRCodes(private val context: Context) {
     /**
      * Запрос QR-кодов грузомест (коробок) поставки от WB API
      */
-    suspend fun getQRCodesSupplies(supplyId: String): List<File> = withContext(Dispatchers.IO) {
+    data class QrResult(val files: List<File>, val errorMessage: String?)
+    data class DeliveryResult(val success: Boolean, val errorMessage: String?)
+
+    private fun parseWbError(responseBody: String, responseCode: Int): String {
+        if (responseBody.isBlank()) return "HTTP ошибка ${responseCode}"
+        return try {
+            val json = JsonParser.parseString(responseBody).asJsonObject
+            when {
+                json.has("message") && !json.get("message").isJsonNull -> json.get("message").asString
+                json.has("errorText") && !json.get("errorText").isJsonNull -> json.get("errorText").asString
+                json.has("error") && !json.get("error").isJsonNull -> json.get("error").asString
+                else -> responseBody.take(200)
+            }
+        } catch (_: Exception) {
+            responseBody.take(200).ifBlank { "HTTP ошибка ${responseCode}" }
+        }
+    }
+
+    /**
+     * Запрос QR-кодов грузомест (коробок) поставки от WB API с детализацией ошибки
+     */
+    suspend fun getQRCodesSuppliesWithDetails(supplyId: String): QrResult = withContext(Dispatchers.IO) {
         val token = prefs.getWbApiToken()
         if (token.isBlank()) {
-            Log.e(TAG, "❌ WB API токен не настроен!")
-            return@withContext emptyList()
+            return@withContext QrResult(emptyList(), "WB API токен не настроен")
         }
 
-        // 1. Получаем список ID грузомест (коробок) для этой поставки.
         val trbxIds = getTrbxIdsForSupply(supplyId)
-        if (trbxIds.isNullOrEmpty()) {
-            Log.e(TAG, "❌ Не удалось получить ID грузомест для поставки $supplyId")
-            return@withContext emptyList()
+        if (trbxIds == null) {
+            return@withContext QrResult(emptyList(), "Не удалось получить список грузомест (ошибка запроса GET /trbx)")
+        }
+        if (trbxIds.isEmpty()) {
+            return@withContext QrResult(emptyList(), "У поставки $supplyId отсутствуют зарегистрированные грузоместа (trbx). Сначала добавьте грузоместа.")
         }
 
         val type = prefs.getTypeFileQRCodes().lowercase()
         if (type !in setOf("svg", "zplv", "zplh", "png")) {
-            Log.e(TAG, "Неподдерживаемый формат QR-стикера грузоместа: $type")
-            return@withContext emptyList()
+            return@withContext QrResult(emptyList(), "Неподдерживаемый формат QR-стикера: $type")
         }
         val rawUrl = prefs.getWBQRCodeSuppliesUrl().replace("{supplyId}", supplyId).replace("%s", supplyId)
-
-        // Для этого метода WB требует параметр type: svg, zplv, zplh или png.
         val url = rawUrl.toHttpUrlOrNull()
             ?.newBuilder()
             ?.addQueryParameter("type", type)
-            ?.build() ?: return@withContext emptyList()
+            ?.build() ?: return@withContext QrResult(emptyList(), "Неверный URL генерации QR-кодов")
 
-        // Формируем JSON тело запроса с массивом trbxIds
         val jsonBody = gson.toJson(mapOf("trbxIds" to trbxIds))
         val body = jsonBody.toRequestBody(mediaType)
 
@@ -258,12 +275,12 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 
         return@withContext try {
             val response = client.newCall(request).execute()
+            val bodyString = response.body?.string().orEmpty()
             if (response.isSuccessful) {
-                val bodyString = response.body?.string() ?: return@withContext emptyList()
                 val jsonObject = JsonParser.parseString(bodyString).asJsonObject
-
-                if (!jsonObject.has("stickers")) return@withContext emptyList()
-
+                if (!jsonObject.has("stickers")) {
+                    return@withContext QrResult(emptyList(), "Ответ WB API не содержит поле 'stickers': $bodyString")
+                }
                 val stickersArray = jsonObject.getAsJsonArray("stickers")
                 val resultFiles = mutableListOf<File>()
 
@@ -275,7 +292,6 @@ class WBDeliveryAndQRCodes(private val context: Context) {
                         .orEmpty()
                     if (fileContent.isNotEmpty()) {
                         try {
-                            // SVG и ZPL в ответе WB — текстовое содержимое файла; PNG приходит Base64.
                             val fileBytes = if (type == "png") {
                                 Base64.decode(fileContent, Base64.DEFAULT)
                             } else {
@@ -290,20 +306,22 @@ class WBDeliveryAndQRCodes(private val context: Context) {
                             val tempFile = File(context.cacheDir, "qrcode_trbx_${safeId}.$type")
                             FileOutputStream(tempFile).use { fos -> fos.write(fileBytes) }
                             resultFiles.add(tempFile)
-                            Log.i(TAG, "✅ QR-стикер грузоместа сохранён: ${tempFile.absolutePath}")
                         } catch (e: Exception) {
-                            Log.e(TAG, "❌ Ошибка сохранения QR-стикера грузоместа №${index + 1}", e)
+                            Log.e(TAG, "❌ Ошибка сохранения QR-стикера №${index + 1}", e)
                         }
                     }
                 }
-                resultFiles
+                if (resultFiles.isEmpty()) {
+                    QrResult(emptyList(), "WB API вернул пустой список файлов стикеров для грузомест")
+                } else {
+                    QrResult(resultFiles, null)
+                }
             } else {
-                Log.e(TAG, "❌ Ошибка получения QR-кодов грузомест. Код: ${response.code}, Ответ: ${response.body?.string()}")
-                emptyList()
+                val err = parseWbError(bodyString, response.code)
+                QrResult(emptyList(), err)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Ошибка получения QR-кодов: ${e.message}", e)
-            emptyList()
+            QrResult(emptyList(), e.message ?: "Сетевая ошибка при запросе QR-кодов")
         }
     }
 
@@ -351,13 +369,13 @@ class WBDeliveryAndQRCodes(private val context: Context) {
     }
 
     /**
-     * Добавить количество грузомест в поставку
+     * Добавить количество грузомест в поставку с детализацией ошибки
      */
-    suspend fun addCargoLocations(supplyId: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun addCargoLocations(supplyId: String): DeliveryResult = withContext(Dispatchers.IO) {
         val numberCargoSpaces = prefs.getNumberCargoSpaces()
-        if (numberCargoSpaces < 1) return@withContext false
+        if (numberCargoSpaces < 1) return@withContext DeliveryResult(false, "Количество грузомест меньше 1")
         val token = prefs.getWbApiToken()
-        if (token.isBlank()) return@withContext false
+        if (token.isBlank()) return@withContext DeliveryResult(false, "WB API токен не настроен")
 
         val jsonBody = gson.toJson(mapOf("amount" to numberCargoSpaces))
         val body = jsonBody.toRequestBody(mediaType)
@@ -371,10 +389,15 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 
         return@withContext try {
             val response = client.newCall(request).execute()
-            response.isSuccessful
+            val bodyString = response.body?.string().orEmpty()
+            if (response.isSuccessful || response.code == 200 || response.code == 204 || response.code == 409) {
+                DeliveryResult(true, null)
+            } else {
+                val err = parseWbError(bodyString, response.code)
+                DeliveryResult(false, err)
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Ошибка добавления грузомест: ${e.message}", e)
-            false
+            DeliveryResult(false, e.message ?: "Сетевая ошибка при добавлении грузомест")
         }
     }
 
@@ -422,15 +445,14 @@ class WBDeliveryAndQRCodes(private val context: Context) {
     }
 
     /**
-     * Передать поставку в доставку
+     * Передать поставку в доставку с детализацией ошибки от WB API
      */
-    suspend fun sendToDelivery(supplyId: String, cargoSpacesCount: Int = prefs.getNumberCargoSpaces()): Boolean = withContext(Dispatchers.IO) {
+    suspend fun sendToDeliveryWithDetails(supplyId: String, cargoSpacesCount: Int = prefs.getNumberCargoSpaces()): DeliveryResult = withContext(Dispatchers.IO) {
         if (cargoSpacesCount <= 0) {
-            Log.e(TAG, "❌ Передача в доставку заблокирована: количество грузомест $cargoSpacesCount <= 0!")
-            return@withContext false
+            return@withContext DeliveryResult(false, "Количество грузомест ($cargoSpacesCount) должно быть больше 0")
         }
         val token = prefs.getWbApiToken()
-        if (token.isBlank()) return@withContext false
+        if (token.isBlank()) return@withContext DeliveryResult(false, "WB API токен не настроен")
 
         val url = "${prefs.getWbSuppliesUrl()}/$supplyId/deliver"
         val jsonBody = gson.toJson(mapOf("cargoSpacesCount" to cargoSpacesCount))
@@ -444,11 +466,20 @@ class WBDeliveryAndQRCodes(private val context: Context) {
 
         return@withContext try {
             val response = client.newCall(request).execute()
-            response.isSuccessful && (response.code == 200 || response.code == 204)
+            val bodyString = response.body?.string().orEmpty()
+            if (response.isSuccessful && (response.code == 200 || response.code == 204)) {
+                DeliveryResult(true, null)
+            } else {
+                val err = parseWbError(bodyString, response.code)
+                DeliveryResult(false, err)
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Ошибка передачи поставки в доставку: ${e.message}", e)
-            false
+            DeliveryResult(false, e.message ?: "Сетевая ошибка при передаче в доставку")
         }
+    }
+
+    suspend fun sendToDelivery(supplyId: String, cargoSpacesCount: Int = prefs.getNumberCargoSpaces()): Boolean {
+        return sendToDeliveryWithDetails(supplyId, cargoSpacesCount).success
     }
 
     /**

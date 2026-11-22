@@ -776,7 +776,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             return
         }
 
-        sendMessage(chatId, "🚚 Передаю поставку `$activeSupply` в статус 'В доставке' (коробок: $cargoSpaces)...", threadId)
+//        sendMessage(chatId, "🚚 Передаю поставку `$activeSupply` в статус 'В доставке' (коробок: $cargoSpaces)...", threadId)
         val delivery = WBDeliveryAndQRCodes(applicationContext)
         val success = delivery.sendToDelivery(activeSupply, cargoSpaces)
 
@@ -993,10 +993,15 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 //            sendSupplyMessageToAllChats("📦 Найдена активная поставка: `$currentSupplyId`")
 
             // 1. Добавляем грузоместа
-            delivery.addCargoLocations(currentSupplyId!!)
+            val addCargoResult = delivery.addCargoLocations(currentSupplyId!!)
+            if (!addCargoResult.success) {
+                val reason = addCargoResult.errorMessage ?: "Не удалось добавить грузоместа"
+                sendSupplyMessageToAllChats("⚠️ Не удалось добавить грузоместа для поставки `$currentSupplyId`.\n*Причина от WB:* `$reason`")
+            }
 
             // 4. Получаем и отправляем QR-код самой поставки (на коробку/паллету)
-            val qrCodeFiles = delivery.getQRCodesSupplies(currentSupplyId!!)
+            val qrResult = delivery.getQRCodesSuppliesWithDetails(currentSupplyId!!)
+            val qrCodeFiles = qrResult.files
             if (qrCodeFiles.isNotEmpty()) {
                 qrCodeFiles.forEachIndexed { index, qrCodeFile ->
                     if (qrCodeFile.exists()) {
@@ -1011,7 +1016,8 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     }
                 }
             } else {
-                sendSupplyMessageToAllChats("⚠️ Не удалось получить QR-код поставки `$currentSupplyId`")
+                val reason = qrResult.errorMessage ?: "Не удалось получить QR-код"
+                sendSupplyMessageToAllChats("⚠️ Не удалось получить QR-код поставки `$currentSupplyId`.\n*Причина от WB:* `$reason`")
             }
 
             // 2. Получаем и отправляем стикеры для заказов в поставке (на товары)
