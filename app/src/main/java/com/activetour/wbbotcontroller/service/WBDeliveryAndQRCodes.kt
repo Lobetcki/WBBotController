@@ -467,6 +467,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
         return@withContext try {
             val response = client.newCall(request).execute()
             val bodyString = response.body?.string().orEmpty()
+            Log.i(TAG, "📦 Ответ WB на deliver [supplyId=$supplyId]: код=${response.code}, тело=$bodyString")
             if (response.isSuccessful && (response.code == 200 || response.code == 204)) {
                 DeliveryResult(true, null)
             } else {
@@ -474,6 +475,7 @@ class WBDeliveryAndQRCodes(private val context: Context) {
                 DeliveryResult(false, err)
             }
         } catch (e: Exception) {
+            Log.e(TAG, "❌ Ошибка передачи в доставку: ${e.message}", e)
             DeliveryResult(false, e.message ?: "Сетевая ошибка при передаче в доставку")
         }
     }

@@ -429,9 +429,10 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
             if (update.hasMessage() && update.message.hasText()) {
 
                 val chatId = update.message.chatId.toString()
-                val text = update.message.text
+                val rawText = update.message.text.trim()
+                val text = rawText.substringBefore("@").trim()
                 val threadId = update.message.messageThreadId // <-- Получаем ID подгруппы
-                Log.d(TAG, "consume: сообщение из чата $chatId, threadId=$threadId: '$text'")
+                Log.d(TAG, "consume: сообщение из чата $chatId, threadId=$threadId: '$text' (raw: '$rawText')")
 
                 // Обработка стартовых команд
                 if (text.equals("ПОСТАВКА", ignoreCase = true)
@@ -770,7 +771,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         if (cargoSpaces <= 0) {
             sendMessage(
                 chatId,
-                "⚠️ *Передача в доставку заблокирована!*\nКоличество коробок (грузомест) должно быть больше 0. Сейчас установлено: *$cargoSpaces*.\n\nСначала формируйте поставку и укажите количество коробок.",
+                "⚠️ *Передача в доставку заблокирована!*\nКоличество коробок (грузомест) должно быть больше 0. Сейчас установлено: *$cargoSpaces*.\n\nСначала укажите количество коробок.",
                 threadId
             )
             return
@@ -778,12 +779,15 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
 //        sendMessage(chatId, "🚚 Передаю поставку `$activeSupply` в статус 'В доставке' (коробок: $cargoSpaces)...", threadId)
         val delivery = WBDeliveryAndQRCodes(applicationContext)
-        val success = delivery.sendToDelivery(activeSupply, cargoSpaces)
+        val result = delivery.sendToDeliveryWithDetails(activeSupply, cargoSpaces)
 
-        if (success) {
+        if (result.success) {
+            sendMessage(chatId, "✅ Поставка `$activeSupply` успешно переведена в статус 'В доставке'! (Коробок: $cargoSpaces)", threadId)
             sendSupplyMessageToAllChats("✅ Поставка `$activeSupply` успешно переведена в статус 'В доставке'! (Коробок: $cargoSpaces)")
         } else {
-            sendSupplyMessageToAllChats("❌ Не удалось перевести поставку `$activeSupply` в статус 'В доставке'. Проверьте API токен, количество коробок (грузомест > 0) и состояние поставки.")
+            val reason = result.errorMessage ?: "Неизвестная ошибка WB API"
+            sendMessage(chatId, "❌ Не удалось перевести поставку `$activeSupply` в статус 'В доставке'.\n*Причина от WB:* `$reason`", threadId)
+            sendSupplyMessageToAllChats("❌ Не удалось перевести поставку `$activeSupply` в статус 'В доставке'.\n*Причина от WB:* `$reason`")
         }
     }
 
