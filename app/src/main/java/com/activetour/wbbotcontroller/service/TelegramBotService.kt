@@ -351,7 +351,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                 when (callbackData) {
                     "cmd_check" -> {
-                        sendOrdersMessageToAllChats("🔍 Выполняю проверку заказов...")
+//                        sendOrdersMessageToAllChats("🔍 Выполняю проверку заказов...")
                         serviceScope.launch {
                             checkAndNotifyAboutOrders(false)
                         }
@@ -404,9 +404,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                             appendLine("🤖 *Справка и меню управления:*")
                             appendLine("• `СТАРТ` — активировать бота (вся информация по умолчанию выводится сюда)")
                             appendLine("• `ПОСТАВКА` — перенаправить вывод листов подбора, стикеров и QR-кодов в этот подчат")
-                            appendLine("• `Жиган проверь` — запустить мгновенную проверку заказов")
-                            appendLine("• `Жиган поставка` — сформировать поставку, получить лист подбора, стикеры в PDF и QR-коды")
-                            appendLine("• `Жиган в доставку` — передать активную поставку в статус 'В доставке'")
+//                            appendLine("• `Жиган проверь` — запустить мгновенную проверку заказов")
+//                            appendLine("• `Жиган поставка` — сформировать поставку, получить лист подбора, стикеры в PDF и QR-коды")
+//                            appendLine("• `Жиган в доставку` — передать активную поставку в статус 'В доставке'")
                             appendLine("• `/status` — проверить статус работы бота")
                             appendLine("• `/help` — показать эту справку и меню")
                         }, targetThread, createBotMenuKeyboard(chatId, targetThread))
@@ -445,7 +445,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
 
                     sendMessage(chatId, buildString {
                         appendLine("✅ *Подчат для ПОСТАВОК перепривязан!*")
-                        appendLine("📌 Теперь листы подбора, стикеры в PDF и QR-коды по команде `Жиган поставка` будут выводиться в этот подчат.")
+                        appendLine("📌 Теперь листы подбора, стикеры в PDF и QR-коды по команде `поставка` будут выводиться в этот подчат.")
                         appendLine("📌 Сообщения о заказах продолжат приходить в основной подчат/чат.")
                     }, currentThread, createMenuLauncherKeyboard())
 
@@ -526,18 +526,20 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 // Обработка команд
                 when {
                     text.contains("проверить заказы", ignoreCase = true)
-                            || text.contains("Жиган проверь", ignoreCase = true)
+                            || text.contains("проверь", ignoreCase = true)
+//                            || text.contains("Жиган проверь", ignoreCase = true)
                             || text.equals("/check", ignoreCase = true) -> {
-                        sendOrdersMessageToAllChats("🔍 Выполняю проверку...")
+//                        sendOrdersMessageToAllChats("🔍 Выполняю проверку...")
                         serviceScope.launch {
                             checkAndNotifyAboutOrders(false)
                         }
                     }
 
                     text.contains("Сформировать поставку", ignoreCase = true)
-                            || text.contains("Жиган поставка", ignoreCase = true)
-                            || text.contains("Жиган qr", ignoreCase = true)
-                            || text.contains("Жиган стикеры", ignoreCase = true)
+                            || text.contains("поставка", ignoreCase = true)
+//                            || text.contains("Жиган поставка", ignoreCase = true)
+//                            || text.contains("Жиган qr", ignoreCase = true)
+//                            || text.contains("Жиган стикеры", ignoreCase = true)
                             || text.equals("/qr", ignoreCase = true)
                             || text.equals("/supply", ignoreCase = true) -> {
 
@@ -561,9 +563,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     }
 
                     text.contains("Передать в доставку", ignoreCase = true)
-                            || text.contains("Жиган в доставку", ignoreCase = true)
-                            || text.contains("Жиган закрыть поставку", ignoreCase = true)
-                            || text.contains("Жиган доставку", ignoreCase = true)
+                            || text.contains("доставка", ignoreCase = true)
+//                            || text.contains("Жиган закрыть поставку", ignoreCase = true)
+//                            || text.contains("Жиган доставку", ignoreCase = true)
                             || text.equals("/deliver", ignoreCase = true) -> {
 
                         val targetThread = preferencesManager.getSupplyThreadId(chatId)
@@ -654,16 +656,25 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
     private fun registerBotCommands() {
         try {
             val commands = listOf(
-                BotCommand("/check", "Проверить новые заказы"),
-                BotCommand("/supply", "Сформировать поставку (стикеры, QR-коды)"),
-                BotCommand("/deliver", "Передать поставку в доставку"),
-                BotCommand("/status", "Статус работы бота"),
-                BotCommand("/help", "Справка и меню")
+                BotCommand("check", "Проверить новые заказы"),
+                BotCommand("supply", "Сформировать поставку (стикеры, QR-коды)"),
+                BotCommand("deliver", "Передать поставку в доставку"),
+                BotCommand("status", "Статус работы бота"),
+                BotCommand("help", "Справка и меню")
             )
-            val setMyCommands = SetMyCommands.builder()
+
+            val setPrivateCommands = SetMyCommands.builder()
                 .commands(commands)
+                .scope(org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeAllPrivateChats())
                 .build()
-            telegramClient.execute(setMyCommands)
+            telegramClient.execute(setPrivateCommands)
+
+            val setGroupCommands = SetMyCommands.builder()
+                .commands(commands)
+                .scope(org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeAllGroupChats())
+                .build()
+            telegramClient.execute(setGroupCommands)
+
             Log.d(TAG, "✅ Команды бота зарегистрированы в меню Telegram")
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка регистрации команд бота: ${e.message}")
@@ -697,18 +708,19 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         if (isSingleTarget) {
             keyboardRows.add(
                 InlineKeyboardRow(
-                    InlineKeyboardButton.builder().text("🔍 Проверить заказы").callbackData("cmd_check").build(),
-                    InlineKeyboardButton.builder().text("📦 Сформировать поставку").callbackData("cmd_supply").build()
+                    InlineKeyboardButton.builder().text("🔍 Проверить заказы").callbackData("cmd_check").build()
                 )
             )
             keyboardRows.add(
                 InlineKeyboardRow(
-                    InlineKeyboardButton.builder().text("🚚 Передать в доставку").callbackData("cmd_deliver").build(),
-                    InlineKeyboardButton.builder().text("📊 Статус").callbackData("cmd_status").build()
+                    InlineKeyboardButton.builder().text("📦 Сформировать поставку").callbackData("cmd_supply").build(),
+                    InlineKeyboardButton.builder().text("🚚 Передать в доставку").callbackData("cmd_deliver").build()
+
                 )
             )
             keyboardRows.add(
                 InlineKeyboardRow(
+                    InlineKeyboardButton.builder().text("📊 Статус").callbackData("cmd_status").build(),
                     InlineKeyboardButton.builder().text("❓ Справка").callbackData("cmd_help").build()
                 )
             )
@@ -781,13 +793,11 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
         val delivery = WBDeliveryAndQRCodes(applicationContext)
         val result = delivery.sendToDeliveryWithDetails(activeSupply, cargoSpaces)
 
+        // Ответ от WB отправляем во ВСЕ чаты поставок, чтобы все видели результат
         if (result.success) {
-            sendMessage(chatId, "✅ Поставка `$activeSupply` успешно переведена в статус 'В доставке'! (Коробок: $cargoSpaces)", threadId)
             sendSupplyMessageToAllChats("✅ Поставка `$activeSupply` успешно переведена в статус 'В доставке'! (Коробок: $cargoSpaces)")
         } else {
-            val reason = result.errorMessage ?: "Неизвестная ошибка WB API"
-            sendMessage(chatId, "❌ Не удалось перевести поставку `$activeSupply` в статус 'В доставке'.\n*Причина от WB:* `$reason`", threadId)
-            sendSupplyMessageToAllChats("❌ Не удалось перевести поставку `$activeSupply` в статус 'В доставке'.\n*Причина от WB:* `$reason`")
+            sendSupplyMessageToAllChats("❌ Не удалось перевести поставку `$activeSupply` в статус 'В доставке'.\n*Причина от WB:* ${result.errorMessage ?: "Неизвестная ошибка WB API"}")
         }
     }
 
