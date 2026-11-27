@@ -318,6 +318,34 @@ class PreferencesManager(context: Context) {
     fun isAutoCreateSupply(): Boolean = prefs.getBoolean("auto_create_supply", true)
     fun setAutoCreateSupply(enabled: Boolean) = prefs.edit().putBoolean("auto_create_supply", enabled).apply()
 
+    // ==================== MAX Messenger Settings ====================
+
+    fun getMaxBotToken(): String = prefs.getString("max_bot_token", "") ?: ""
+    fun setMaxBotToken(token: String) = prefs.edit().putString("max_bot_token", token).apply()
+
+    fun getMaxOrdersChatId(): String = prefs.getString("max_orders_chat_id", "") ?: ""
+    fun setMaxOrdersChatId(chatId: String) = prefs.edit().putString("max_orders_chat_id", chatId).apply()
+
+    fun getMaxSupplyChatId(): String = prefs.getString("max_supply_chat_id", "") ?: ""
+    fun setMaxSupplyChatId(chatId: String) = prefs.edit().putString("max_supply_chat_id", chatId).apply()
+
+    fun getMaxOrdersThreadId(): Int = prefs.getInt("max_orders_thread_id", 0)
+    fun setMaxOrdersThreadId(threadId: Int) = prefs.edit().putInt("max_orders_thread_id", threadId).apply()
+
+    fun getMaxSupplyThreadId(): Int = prefs.getInt("max_supply_thread_id", 0)
+    fun setMaxSupplyThreadId(threadId: Int) = prefs.edit().putInt("max_supply_thread_id", threadId).apply()
+
+    fun isMaxBotEnabled(): Boolean = prefs.getBoolean("max_bot_enabled", false)
+    fun setMaxBotEnabled(enabled: Boolean) = prefs.edit().putBoolean( "max_bot_enabled", enabled).apply()
+
+    fun getMaxCheckIntervalMinutes(): Int = prefs.getInt("max_check_interval_minutes", 15)
+    fun setMaxCheckIntervalMinutes(minutes: Int) = prefs.edit().putInt("max_check_interval_minutes", minutes).apply()
+
+    // ==================== App Version Tracking ====================
+
+    fun getLastAppVersion(): String = prefs.getString("last_app_version", "") ?: ""
+    fun setLastAppVersion(version: String) = prefs.edit().putString("last_app_version", version).apply()
+
     // ==================== Helper Methods ====================
 
     fun isBotConfigured(): Boolean {

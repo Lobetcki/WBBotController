@@ -40,12 +40,33 @@
             android:theme="@style/Theme.WBBotController" />
 
         <activity
+            android:name=".WbSettingsActivity"
+            android:parentActivityName=".SettingsActivity"
+            android:theme="@style/Theme.WBBotController" />
+
+        <activity
             android:name=".UrlSettingsActivity"
+            android:parentActivityName=".SettingsActivity"
+            android:theme="@style/Theme.WBBotController" />
+
+        <activity
+            android:name=".TelegramSettingsActivity"
+            android:parentActivityName=".SettingsActivity"
+            android:theme="@style/Theme.WBBotController" />
+
+        <activity
+            android:name=".MaxSettingsActivity"
             android:parentActivityName=".SettingsActivity"
             android:theme="@style/Theme.WBBotController" />
 
         <service
             android:name=".service.TelegramBotService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name=".service.MaxBotService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

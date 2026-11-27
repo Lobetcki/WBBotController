@@ -148,6 +148,9 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                     startPeriodicCheck()
                     Log.d(TAG, "✅ startBot: периодическая проверка запущена")
 
+                    // Проверка обновления версии приложения и авто-уведомление в чаты
+//                    checkAppVersionUpdate()
+
                     // Проверяем заказы только если уже есть активный чат
                     if (preferencesManager.getAllChatIds().isNotEmpty()) {
                         Log.d(TAG, "startBot: первая проверка заказов...")
@@ -1072,7 +1075,7 @@ class TelegramBotService : Service(), LongPollingSingleThreadUpdateConsumer {
                 }
             }
 
-            // 5. Передаем поставку в доставку в WB
+//            // 5. Передаем поставку в доставку в WB
 //            val deliverySuccess = delivery.sendToDelivery(currentSupplyId!!)
 //            if (deliverySuccess) {
 //                sendSupplyMessageToAllChats("✅ Поставка `$currentSupplyId` переведена в статус 'В доставке'")
